@@ -59,18 +59,40 @@
   // metric은 있는 항목에만 붙인다
   const metricHTML = (it) => (it.metric ? `<em class="metric">${esc(it.metric)}</em>` : "");
 
+  // detail이 있는 항목은 눌러서 말풍선을 펼칠 수 있게 한다
+  const detailAttrs = (it, cls = "") => {
+    const c = `${cls}${it.detail ? " has-detail" : ""}`.trim();
+    const attrs = it.detail ? ` tabindex="0" role="button" aria-expanded="false" data-title="${esc(it.title)}"` : "";
+    return `${c ? `class="${c}"` : ""}${attrs}`;
+  };
+  const plusHTML = (it) => (it.detail ? `<i class="plus" aria-hidden="true">+</i>` : "");
+  const bubbleHTML = (it) => (it.detail ? `<div class="bubble"><div><div class="bubble-text">${esc(it.detail)}</div></div></div>` : "");
+
   // 커튼콜 프로그램북 목록: 태그 | 제목·설명 | 수치
   function itemsHTML(stage, d0) {
     return stage.items.map((it, k) =>
-      `<li ${rv(d0 + k * 70)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span>
-        <span>${it.title ? `<b>${esc(it.title)}</b>` : ""}${esc(it.text)}</span>${metricHTML(it)}</li>`).join("");
+      `<li ${rv(d0 + k * 70)} ${detailAttrs(it)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span>
+        <span>${it.title ? `<b>${esc(it.title)}${plusHTML(it)}</b>` : ""}${esc(it.text)}</span>${metricHTML(it)}${bubbleHTML(it)}</li>`).join("");
   }
 
   // 클리어 화면: 항목마다 칩 카드 한 장
   function chipsHTML(stage, d0) {
     return stage.items.map((it, k) =>
-      `<li class="chip" ${rv(d0 + k * 60)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span>
-        ${it.title ? `<strong>${esc(it.title)}</strong>` : ""}<span class="chip-text">${esc(it.text)}</span>${metricHTML(it)}</li>`).join("");
+      `<li ${rv(d0 + k * 60)} ${detailAttrs(it, "chip")}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span>
+        ${it.title ? `<strong>${esc(it.title)}${plusHTML(it)}</strong>` : ""}<span class="chip-text">${esc(it.text)}</span>${metricHTML(it)}${bubbleHTML(it)}</li>`).join("");
+  }
+
+  // Spotlight 카드: 누르면 프로그램북의 해당 항목으로 내려가 말풍선을 연다
+  function spotlightHTML(p, d0) {
+    return (p.spotlight || []).map((s, k) => {
+      const stage = p.stages.find((st) => st.year === s.year);
+      const item = stage && stage.items.find((it) => it.title === s.ref);
+      return `<div ${rv(d0 + k * 100)}><button type="button" class="spot" data-ref="${esc(s.ref)}">
+        <span class="spot-year">${esc(s.year)}${item ? ` · ${esc(item.tag)}` : ""}</span>
+        <span class="spot-value">${esc(s.value)}</span><span class="spot-label">${esc(s.label)}</span>
+        <strong>${esc(s.ref)}</strong><span class="spot-text">${esc(s.text)}</span>
+        <span class="spot-more">자세히 <span class="arr">↓</span></span></button></div>`;
+    }).join("");
   }
 
   function chapterHTML(stage, d0 = 0) {
@@ -406,7 +428,8 @@
         .map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
       $("ownerFacts").innerHTML = (p.facts || [])
         .map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join("");
-      $("timeline").innerHTML = p.stages.map((s, k) => programHTML(s, 1250 + k * 120)).join("");
+      $("spotlight").innerHTML = spotlightHTML(p, 1250);
+      $("timeline").innerHTML = p.stages.map((s, k) => programHTML(s, 1600 + k * 120)).join("");
       $("roadmap").innerHTML = (p.roadmap || [])
         .map((r) => `<li><span class="r-year">${esc(r.year)}</span><h4>${esc(r.title)}</h4><p>${esc(r.text)}</p></li>`).join("");
       const total = totalScore();
@@ -544,6 +567,40 @@
     ticket.classList.remove("tilting");
     ticket.classList.add("torn");
     setTimeout(renderSetlist, 700);
+  });
+
+  // ------------------------------------------------------------ detail bubbles
+  // 같은 목록에서는 말풍선을 하나만 열어 둔다
+  function toggleDetail(el, open = el.getAttribute("aria-expanded") !== "true") {
+    if (open) {
+      el.parentElement.querySelectorAll('.has-detail[aria-expanded="true"]')
+        .forEach((o) => { if (o !== el) o.setAttribute("aria-expanded", "false"); });
+    }
+    el.setAttribute("aria-expanded", String(open));
+  }
+
+  document.addEventListener("click", (e) => {
+    const spot = e.target.closest(".spot");
+    if (spot) {
+      const li = [...document.querySelectorAll("#timeline .has-detail")].find((x) => x.dataset.title === spot.dataset.ref);
+      if (!li) return;
+      toggleDetail(li, true);
+      li.scrollIntoView({ behavior: MOTION ? "smooth" : "auto", block: "center" });
+      li.classList.remove("ping");
+      void li.offsetWidth; // 연속으로 눌러도 깜빡임이 다시 재생되도록
+      li.classList.add("ping");
+      return;
+    }
+    // 말풍선 안의 글을 고르거나 누를 때는 닫지 않는다
+    if (e.target.closest(".bubble-text")) return;
+    const el = e.target.closest(".has-detail");
+    if (el) toggleDetail(el);
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("has-detail")) {
+      e.preventDefault();
+      toggleDetail(e.target);
+    }
   });
 
   // ------------------------------------------------------------ cursor trail
