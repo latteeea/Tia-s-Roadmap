@@ -128,7 +128,7 @@ data:
       const BEATS = 32;
       const LEAD_IN = 4;
       // 무대가 진행될수록 촘촘해진다: [박자당 스텝 수, 노트 확률, 동시치기 확률]
-      const DIFFICULTY = [[1, 0.6, 0], [1, 0.85, 0], [2, 0.5, 0.05], [2, 0.68, 0.15]];
+      const DIFFICULTY = [[1, 0.6, 0], [1, 0.85, 0], [2, 0.5, 0.05], [2, 0.55, 0.05]];
 
       const C = { paper: "#fbf8f2", ink: "#2b2a27", line: "#e2dccf", matcha: "#7f9c7a", pink: "#d6a2a0", muted: "#8a857b" };
 
