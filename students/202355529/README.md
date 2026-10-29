@@ -37,15 +37,15 @@ flowchart LR
     U[사용자 브라우저] -->|HTTPS| R[Route<br/>tia-web<br/>edge TLS]
     R --> SW[Service<br/>tia-web :8080]
     SW --> PW[Pod: tia-web<br/>ubi9/python-311]
-    PW -->|RESP :6379| SR[Service<br/>tia-redis]
+    PW -->|"RESP :6379"| SR[Service<br/>tia-redis]
     SR --> PR[Pod: tia-redis<br/>sclorg/redis-7-c9s]
     PR --- PVC[(PVC<br/>tia-redis-data 1Gi)]
 
-    CM1[ConfigMap<br/>tia-web-app] -.server.py.-> PW
-    CM2[ConfigMap<br/>tia-web-static] -.html/js/css.-> PW
-    CM3[ConfigMap<br/>tia-portfolio] -.portfolio.json.-> PW
-    SEC[Secret<br/>tia-redis-secret] -.REDIS_PASSWORD.-> PW
-    SEC -.REDIS_PASSWORD.-> PR
+    CM1[ConfigMap<br/>tia-web-app] -.->|"server.py"| PW
+    CM2[ConfigMap<br/>tia-web-static] -.->|"html/js/css"| PW
+    CM3[ConfigMap<br/>tia-portfolio] -.->|"portfolio.json"| PW
+    SEC[Secret<br/>tia-redis-secret] -.->|"REDIS_PASSWORD"| PW
+    SEC -.->|"REDIS_PASSWORD"| PR
 ```
 
 **요청 흐름**: 사용자 → Route(HTTPS 종료) → Service `tia-web` → Web Pod → (API 요청 시) Service `tia-redis` → Redis Pod → PVC
