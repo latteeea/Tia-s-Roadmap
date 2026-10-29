@@ -46,6 +46,7 @@
   // ------------------------------------------------------------ screens
   function show(id) {
     document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
+    $("skipBtn").hidden = id === "curtain"; // 이미 포트폴리오를 보고 있으니 숨긴다
     window.scrollTo({ top: 0 });
   }
 
@@ -149,14 +150,36 @@
   }
 
   // ------------------------------------------------------------ audio
-  let audio = null;
+  let audio = null, master = null, bus = null, noiseBuf = null;
   function ensureAudio() {
     if (audio) return audio;
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (Ctx) audio = new Ctx();
+    if (!Ctx) return null;
+    audio = new Ctx();
+    // 여러 소리가 겹쳐도 찢어지지 않게 컴프레서를 거친다
+    master = audio.createDynamicsCompressor();
+    master.connect(audio.destination);
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return audio;
   }
   const now = () => (audio ? audio.currentTime : performance.now() / 1000);
+  const out = () => bus || master;
+
+  // 무대 하나의 소리는 전부 bus 하나로 모아, 중간에 나가면 미리 예약된 소리까지 한 번에 끈다
+  function startBus() {
+    stopBus();
+    bus = audio.createGain();
+    bus.connect(master);
+  }
+  function stopBus() {
+    if (!bus) return;
+    const b = bus;
+    bus = null;
+    b.gain.setTargetAtTime(0, audio.currentTime, 0.04);
+    setTimeout(() => b.disconnect(), 400);
+  }
 
   function click(time, freq, gain = 0.15, dur = 0.05, type = "sine") {
     if (!audio) return;
@@ -167,19 +190,150 @@
     o.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.5), time + dur);
     g.gain.setValueAtTime(gain, time);
     g.gain.exponentialRampToValueAtTime(0.001, time + dur);
-    o.connect(g).connect(audio.destination);
+    o.connect(g).connect(out());
     o.start(time);
     o.stop(time + dur + 0.02);
   }
 
-  function scheduleBeat(start, beatDur) {
-    for (let b = -LEAD_IN; b < BEATS; b++) {
-      const t = start + b * beatDur;
-      if (b < 0) { click(t, 880, 0.12, 0.06); continue; }        // 카운트인
-      click(t, b % 4 === 0 ? 120 : 95, 0.35, 0.12);               // 킥
-      click(t + beatDur / 2, 3200, 0.03, 0.02, "square");          // 하이햇
-      if (b % 4 === 2) click(t, 220, 0.12, 0.08, "triangle");      // 스네어 느낌
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function tone(time, midi, dur, opt = {}) {
+    if (!audio) return;
+    const { type = "triangle", gain = 0.06, attack = 0.01, cutoff = 0, detune = 0, dest = out() } = opt;
+    const osc = audio.createOscillator(), g = audio.createGain();
+    osc.type = type;
+    osc.frequency.value = mtof(midi);
+    osc.detune.value = detune;
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(gain, time + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    let node = osc;
+    if (cutoff) {
+      const f = audio.createBiquadFilter();
+      f.type = "lowpass"; f.frequency.value = cutoff;
+      osc.connect(f); node = f;
     }
+    node.connect(g).connect(dest);
+    osc.start(time);
+    osc.stop(time + dur + 0.05);
+  }
+  function noise(time, dur, { gain = 0.05, type = "highpass", freq = 7000, sweepTo = 0, dest = out() } = {}) {
+    if (!audio) return;
+    const src = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+    src.buffer = noiseBuf; src.loop = true;
+    f.type = type; f.frequency.setValueAtTime(freq, time);
+    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, time + dur);
+    g.gain.setValueAtTime(gain, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    src.connect(f).connect(g).connect(dest);
+    src.start(time);
+    src.stop(time + dur + 0.02);
+  }
+
+  // 드럼
+  const kick = (t, v = 0.55) => click(t, 140, v, 0.18);
+  const snare = (t, v = 0.13) => { noise(t, 0.14, { gain: v, type: "bandpass", freq: 1900 }); click(t, 210, v * 0.7, 0.07, "triangle"); };
+  const clap = (t, v = 0.12) => { noise(t, 0.1, { gain: v, type: "bandpass", freq: 1300 }); noise(t + 0.012, 0.12, { gain: v * 0.8, type: "bandpass", freq: 1100 }); };
+  const hat = (t, v = 0.03, len = 0.035) => noise(t, len, { gain: v, freq: 8500 });
+
+  // 무대별 곡: 조(root, MIDI 번호)와 한 마디마다 바뀌는 코드 진행, 연주 스타일. 32박 = 8마디
+  const CHORD = { maj: [0, 4, 7], m: [0, 3, 7], maj7: [0, 4, 7, 11], m7: [0, 3, 7, 10], dom7: [0, 4, 7, 10] };
+  const SONGS = [
+    { style: "lofi", root: 53, lead: "sine", prog: [[0, "maj7"], [4, "m7"], [9, "m7"], [5, "maj7"]] },      // 2023 연습생: F장조 로파이
+    { style: "funk", root: 55, lead: "square", prog: [[9, "m7"], [5, "maj7"], [0, "maj"], [7, "dom7"]] },   // 2024 데뷔: G장조 펑키 팝
+    { style: "house", root: 50, lead: "triangle", prog: [[0, "m7"], [8, "maj7"], [3, "maj"], [10, "maj"]] }, // 2025 메인 스테이지: D단조 하우스
+    { style: "edm", root: 52, lead: "sawtooth", prog: [[0, "m"], [8, "maj"], [3, "maj"], [10, "maj"]] },     // 2026 앵콜: E단조 빌드업 → 드롭
+  ];
+
+  function scheduleMusic(index, start, beatDur, notes) {
+    const song = SONGS[index] || SONGS[SONGS.length - 1];
+    const e = beatDur / 2, s = beatDur / 4;
+    const chordAt = (beat) => {
+      const [deg, kind] = song.prog[Math.floor(beat / 4) % song.prog.length];
+      return CHORD[kind].map((n) => song.root + deg + n);
+    };
+    for (let b = -LEAD_IN; b < 0; b++) click(start + b * beatDur, 880, 0.1, 0.06); // 카운트인
+
+    for (let bar = 0; bar < BEATS / 4; bar++) {
+      const t0 = start + bar * 4 * beatDur;
+      const ch = chordAt(bar * 4), bass = ch[0] - 12;
+      if (song.style === "lofi") {
+        ch.forEach((m) => tone(t0, m, 4 * beatDur, { gain: 0.03, attack: 0.3, cutoff: 1300 }));
+        tone(t0, bass, 1.6 * beatDur, { type: "sine", gain: 0.18 });
+        tone(t0 + 2.5 * beatDur, bass + 7, beatDur, { type: "sine", gain: 0.13 });
+      } else if (song.style === "funk") {
+        [1, 0, 1, 1, 0, 1, 0, 1].forEach((on, k) => on && tone(t0 + k * e, bass + (k === 3 || k === 7 ? 12 : 0), e * 0.8, { type: "square", gain: 0.06, cutoff: 700 }));
+        [1, 3].forEach((beat) => ch.forEach((m) => tone(t0 + beat * beatDur + e, m + 12, 0.14, { type: "square", gain: 0.022, cutoff: 2600 })));
+      } else if (song.style === "house") {
+        for (let k = 0; k < 4; k++) {
+          tone(t0 + k * beatDur + e, bass, e * 0.9, { type: "sawtooth", gain: 0.07, cutoff: 600 });
+          ch.forEach((m) => tone(t0 + k * beatDur + e, m + 12, 0.16, { type: "sawtooth", gain: 0.02, cutoff: 1900 }));
+        }
+      } else if (bar < 4) {
+        // 앵콜 빌드업: 16분음 아르페지오가 점점 촘촘해지고, 마지막 두 마디에 노이즈가 차오른다
+        for (let k = 0; k < 16; k++) tone(t0 + k * s, ch[k % ch.length] + 12, s * 0.9, { type: "square", gain: 0.015 + bar * 0.006, cutoff: 1200 + bar * 700 });
+        if (bar === 2) noise(t0, 8 * beatDur, { gain: 0.05, type: "bandpass", freq: 400, sweepTo: 7000 });
+      } else {
+        // 드롭: 디튠한 톱니파 코드가 박마다 펌핑(사이드체인 느낌)
+        const pump = audio.createGain();
+        pump.connect(out());
+        for (let k = 0; k < 4; k++) {
+          pump.gain.setValueAtTime(0.25, t0 + k * beatDur);
+          pump.gain.linearRampToValueAtTime(1, t0 + k * beatDur + e);
+        }
+        ch.forEach((m) => [-14, 0, 14].forEach((dt) => tone(t0, m + 12, 4 * beatDur, { type: "sawtooth", gain: 0.014, attack: 0.02, cutoff: 3200, detune: dt, dest: pump })));
+        for (let k = 0; k < 4; k++) tone(t0 + k * beatDur + e, bass, e * 0.9, { type: "sawtooth", gain: 0.08, cutoff: 500 });
+      }
+    }
+
+    for (let b = 0; b < BEATS; b++) {
+      const t = start + b * beatDur, inBar = b % 4;
+      if (song.style === "lofi") {
+        if (inBar === 0 || inBar === 2) kick(t, 0.45);
+        if (inBar === 1 || inBar === 3) snare(t, 0.07);
+        hat(t, 0.02); hat(t + beatDur * 0.62, 0.014); // 스윙
+      } else if (song.style === "funk") {
+        if (inBar === 0 || inBar === 2) kick(t);
+        if (inBar === 2) kick(t + e, 0.35);
+        if (inBar === 1 || inBar === 3) snare(t);
+        for (let k = 0; k < 4; k++) hat(t + k * s, k % 2 ? 0.012 : 0.026);
+      } else if (song.style === "house") {
+        kick(t);
+        if (inBar === 1 || inBar === 3) clap(t);
+        hat(t + e, 0.035, 0.09); // 오픈 하이햇
+      } else if (b < 16) {
+        if (b < 8 || inBar === 0) kick(t, 0.5);
+        if (b >= 8 && b < 12) { snare(t, 0.08); snare(t + e, 0.08); }
+        if (b >= 12) for (let k = 0; k < 4; k++) snare(t + k * s, 0.05 + (b - 12) * 0.02);
+      } else {
+        kick(t);
+        if (inBar === 1 || inBar === 3) clap(t, 0.14);
+        hat(t + e, 0.03, 0.06);
+      }
+    }
+
+    // 노트가 떨어지는 자리에서 멜로디가 울린다: 레인마다 지금 코드의 다른 음
+    notes.forEach((n) => {
+      const beat = Math.max(0, Math.floor((n.t - start) / beatDur + 1e-6));
+      const ch = chordAt(beat);
+      const midi = ch[n.lane % ch.length] + 12 + (n.lane === 3 ? 12 : 0);
+      tone(n.t, midi, song.style === "lofi" ? 0.45 : 0.16, { type: song.lead, gain: song.lead === "sine" ? 0.06 : 0.025, cutoff: song.lead === "sine" ? 0 : 2800 });
+    });
+
+    // 마무리: 마지막 박에 코드 한 번
+    const end = start + BEATS * beatDur, last = chordAt(BEATS - 1);
+    kick(end);
+    last.forEach((m) => tone(end, m + 12, 1.4, { type: "triangle", gain: 0.04 }));
+  }
+
+  // 커튼이 열릴 때 반짝이는 효과음 (도미솔도 아르페지오)
+  function chime() {
+    if (!ensureAudio()) return;
+    if (audio.state === "suspended") audio.resume();
+    const t = audio.currentTime + 0.02;
+    [84, 88, 91, 96, 100, 103].forEach((m, k) => {
+      tone(t + k * 0.075, m, 1.1, { type: "sine", gain: 0.07, attack: 0.005, dest: master });
+      tone(t + k * 0.075, m + 12, 0.5, { type: "sine", gain: 0.018, attack: 0.005, dest: master });
+    });
   }
 
   // ------------------------------------------------------------ chart
@@ -223,14 +377,15 @@
     const stage = state.portfolio.stages[index];
     const beatDur = 60 / stage.bpm;
     const start = now() + 0.6 + LEAD_IN * beatDur;
-    scheduleBeat(start, beatDur);
+    const notes = buildChart(index, stage, start);
+    if (audio) { startBus(); scheduleMusic(index, start, beatDur, notes); }
     state.current = {
-      index, stage, start, beatDur,
-      notes: buildChart(index, stage, start),
+      index, stage, start, beatDur, notes,
       end: start + BEATS * beatDur + 0.8,
       score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, miss: 0,
-      flash: { text: "", t: 0 }, laneFlash: [0, 0, 0, 0], running: true,
+      flash: { text: "", t: 0 }, laneFlash: [0, 0, 0, 0], running: true, lastBeat: null,
     };
+    $("dancer").style.setProperty("--t", `${Math.min(0.18, beatDur * 0.3)}s`);
     $("hudStage").textContent = `Stage ${index + 1} · ${stage.grade}`;
     $("hudTitle").textContent = `${stage.year} ${stage.title}`;
     updateHud();
@@ -242,15 +397,53 @@
     const g = state.current;
     note.judged = true;
     const a = Math.abs(dt);
-    if (a <= WINDOW.perfect) { g.perfect++; g.combo++; g.score += 300; flash("PERFECT"); }
+    if (a <= WINDOW.perfect) { g.perfect++; g.combo++; g.score += 300; flash("PERFECT"); dancerReact("hop"); }
     else if (a <= WINDOW.good) { g.good++; g.combo++; g.score += 120; flash("GOOD"); }
-    else { g.miss++; g.combo = 0; flash("MISS"); return; }
+    else { g.miss++; g.combo = 0; flash("MISS"); dancerReact("wobble"); return; }
     g.score += Math.floor(g.combo / 10) * 20;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
+    if (g.combo % 10 === 0) dancerReact("pop", `${g.combo} COMBO`);
     click(now(), 1400, 0.05, 0.03, "triangle");
   }
 
   function flash(text) { state.current.flash = { text, t: now() }; updateHud(); }
+
+  // ------------------------------------------------------------ dancer
+  // 무대마다 다른 4박 안무. 포즈 = [왼팔, 왼팔꿈치, 오른팔, 오른팔꿈치, 왼다리, 오른다리, 몸 기울기, 높이(px, +는 아래), 머리]
+  // 팔은 아래로 내린 상태가 0도, 왼팔은 +로·오른팔은 −로 갈수록 바깥/위로 올라간다
+  const MOVES = [
+    [[35, 100, -35, -100, 6, 0, -5, 0, -8], [20, 60, -20, -60, 0, 0, 0, 5, 0],
+      [35, 100, -35, -100, 0, -6, 5, 0, 8], [20, 60, -20, -60, 0, 0, 0, 5, 0]],         // 연습생: 손 모으고 좌우 스텝
+    [[140, 15, -20, -30, 8, -4, 6, 0, 6], [40, 30, -40, -30, 0, 0, 0, 6, 0],
+      [20, 30, -140, -15, 4, -8, -6, 0, -6], [40, 30, -40, -30, 0, 0, 0, 6, 0]],         // 데뷔: 디스코 포인트
+    [[90, 30, -90, -30, 5, -5, 0, 6, 0], [100, -40, -100, 40, 0, 0, 0, 0, 0],
+      [70, 60, -70, -60, 5, -5, 0, 6, 0], [120, 20, -60, -70, 0, 0, 4, 0, 5]],           // 메인 스테이지: 팔 웨이브
+    [[135, 20, -135, -20, 10, -10, 0, -4, 0], [60, 100, -60, -100, 0, 0, 0, 8, 0],
+      [135, 40, -40, -110, 12, -4, -8, -2, -8], [40, 110, -135, -40, 4, -12, 8, -2, 8]], // 앵콜: 양팔 번쩍
+  ];
+  const POSE_VARS = ["--al", "--al2", "--ar", "--ar2", "--ll", "--lr", "--tilt", "--y", "--head"];
+  function setPose(p) {
+    const d = $("dancer");
+    POSE_VARS.forEach((v, k) => d.style.setProperty(v, v === "--y" ? `${p[k]}px` : `${p[k]}deg`));
+  }
+
+  // 박이 바뀔 때만 다음 포즈로 넘어간다. 카운트인 동안은 가볍게 들썩이고, 끝나면 양팔을 든다
+  function danceTo(g, beat) {
+    if (beat === g.lastBeat) return;
+    g.lastBeat = beat;
+    if (beat < 0) setPose([12, 20, -12, -20, 0, 0, 0, beat % 2 ? 4 : 0, 0]);
+    else if (beat >= BEATS) setPose([135, 20, -135, -20, 6, -6, 0, 0, 0]);
+    else setPose((MOVES[g.index] || MOVES[0])[beat % 4]);
+  }
+
+  // 판정 반응: 같은 클래스를 다시 붙여 애니메이션을 처음부터 재생한다
+  function dancerReact(cls, text) {
+    const d = $("dancer");
+    if (text) $("dancerPop").textContent = text;
+    d.classList.remove(cls);
+    void d.offsetWidth;
+    d.classList.add(cls);
+  }
 
   function press(lane) {
     const g = state.current;
@@ -297,8 +490,9 @@
     const t = now();
 
     for (const n of g.notes) {
-      if (!n.judged && t - n.t > WINDOW.miss) { n.judged = true; g.miss++; g.combo = 0; flash("MISS"); }
+      if (!n.judged && t - n.t > WINDOW.miss) { n.judged = true; g.miss++; g.combo = 0; flash("MISS"); dancerReact("wobble"); }
     }
+    danceTo(g, Math.floor((t - g.start) / g.beatDur));
 
     ctx2d.clearRect(0, 0, W, H);
     ctx2d.fillStyle = C.paper; ctx2d.fillRect(0, 0, W, H);
@@ -445,7 +639,8 @@
   // 막이 닫히고 → 그 사이 화면을 바꾸고 → 막이 양옆으로 걷힌다
   let curtainBusy = false;
   function curtainTransition(swap) {
-    if (!MOTION) return swap();
+    ensureAudio(); // 클릭 순간에 만들어 둬야 브라우저가 소리를 막지 않는다
+    if (!MOTION) { chime(); return swap(); }
     if (curtainBusy) return;
     curtainBusy = true;
     const box = $("curtains"), [L, R] = box.querySelectorAll("div"), label = box.querySelector(".c-label");
@@ -464,6 +659,7 @@
     ])
       .then(() => { swap(); return new Promise((r) => setTimeout(r, 350)); })
       .then(() => {
+        chime();
         label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" });
         return Promise.all([L.animate(side(-1), open).finished, R.animate(side(1), open).finished]);
       })
@@ -508,7 +704,7 @@
   // ------------------------------------------------------------ input
   document.addEventListener("keydown", (e) => {
     if (!state.current || !state.current.running) return;
-    if (e.code === "Escape") { state.current.running = false; renderSetlist(); return; }
+    if (e.code === "Escape") { state.current.running = false; stopBus(); renderSetlist(); return; }
     const lane = KEYMAP[e.code];
     if (lane === undefined || e.repeat) return;
     e.preventDefault();
@@ -648,6 +844,7 @@
 
   $("skipBtn").addEventListener("click", () => {
     if (state.current) state.current.running = false;
+    if (audio) stopBus();
     openCurtain();
   });
   $("replayBtn").addEventListener("click", renderSetlist);

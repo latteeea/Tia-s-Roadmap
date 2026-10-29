@@ -402,3 +402,43 @@ input:focus, textarea:focus { outline: none; border-color: var(--matcha); }
 
 /* 등장 마스크가 호버 시 떠오른 카드의 그림자를 자르지 않도록 감싸는 요소에 여백을 둔다 */
 .setlist > li, .spotlight > div { padding: 8px 0 28px; margin: -8px 0 -28px; }
+
+/* 댄서: 게임 캔버스 왼쪽에서 춤춘다. 포즈 각도(--al 등)는 game.js가 박자마다 바꾼다 */
+.dancer {
+  --al: 20deg; --al2: -10deg; --ar: -20deg; --ar2: 10deg; --ll: 0deg; --lr: 0deg; --tilt: 0deg; --y: 0px; --head: 0deg; --t: .14s;
+  position: absolute; bottom: 64px; left: calc(50% - 180px - 150px); width: 130px; pointer-events: none;
+}
+.d-fig { position: relative; transform-origin: 50% 100%; transform: translateY(var(--y)) rotate(var(--tilt)); transition: transform var(--t) cubic-bezier(.3, .7, .4, 1); }
+.d-body { display: block; width: 130px; height: auto; margin-top: 52px; overflow: visible; }
+.d-body line { stroke-linecap: round; }
+.leg line { stroke: var(--ink); stroke-width: 11; }
+.leg ellipse { fill: var(--ink); }
+.arm line, .fore line { stroke: #2f3a52; stroke-width: 9; }
+.arm circle, .fore circle { fill: #f2d6c4; }
+.torso { fill: #2f3a52; }
+.turtle { fill: var(--ink); }
+.leg, .arm, .fore { transition: transform var(--t) cubic-bezier(.3, .7, .4, 1); }
+.leg-l { transform-origin: 53px 104px; transform: rotate(var(--ll)); }
+.leg-r { transform-origin: 67px 104px; transform: rotate(var(--lr)); }
+.arm-l { transform-origin: 40px 58px; transform: rotate(var(--al)); }
+.arm-r { transform-origin: 80px 58px; transform: rotate(var(--ar)); }
+.fore-l { transform-origin: 38px 82px; transform: rotate(var(--al2)); }
+.fore-r { transform-origin: 82px 82px; transform: rotate(var(--ar2)); }
+.d-face {
+  position: absolute; top: 0; left: 50%; width: 64px; height: 80px; margin-left: -32px; border-radius: 50%; object-fit: cover;
+  box-shadow: 0 2px 6px rgba(43, 42, 39, .18); transform-origin: 50% 90%; transform: rotate(var(--head));
+  transition: transform var(--t) cubic-bezier(.3, .7, .4, 1);
+}
+.d-shadow { width: 70px; height: 10px; margin: -6px auto 0; border-radius: 50%; background: rgba(43, 42, 39, .12); }
+.d-pop {
+  position: absolute; top: -8px; left: 50%; transform: translateX(-50%); opacity: 0;
+  font-size: 12px; font-weight: 800; letter-spacing: .08em; color: var(--matcha-deep); white-space: nowrap;
+}
+.motion .dancer.hop .d-fig { animation: hop .38s cubic-bezier(.3, .7, .4, 1); }
+.motion .dancer.wobble .d-fig { animation: wobble .42s ease; }
+.motion .dancer.pop .d-pop { animation: pop .7s ease-out; }
+@keyframes hop { 40% { transform: translateY(-22px) rotate(var(--tilt)); } }
+@keyframes wobble { 25% { transform: rotate(-9deg); } 60% { transform: rotate(6deg); } }
+@keyframes pop { 15% { opacity: 1; transform: translate(-50%, -6px); } to { opacity: 0; transform: translate(-50%, -26px); } }
+/* 캔버스 옆 공간이 없는 좁은 화면에서는 숨긴다 */
+@media (max-width: 680px) { .dancer { display: none; } }
