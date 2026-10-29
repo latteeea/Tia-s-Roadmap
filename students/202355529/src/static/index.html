@@ -1,12 +1,99 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><title>Tia's Roadmap</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tia's Roadmap</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
-  <h1>Tia's Roadmap</h1>
-  <p id="status">무대 준비 중…</p>
-  <script>
-    Promise.all([fetch("/api/portfolio").then(r => r.json()), fetch("/readyz").then(r => r.json())])
-      .then(([p, r]) => { document.getElementById("status").textContent = `${p.owner} · ${p.headline} · redis ${r.redis}`; });
-  </script>
+  <header class="topbar">
+    <span class="brand">Tia's Roadmap</span>
+    <button class="link" id="skipBtn" type="button">포트폴리오 바로 보기 →</button>
+  </header>
+
+  <!-- 1. 인트로 -->
+  <section class="screen active" id="intro">
+    <p class="eyebrow">Rehearsal Stage · 2023 — 2026</p>
+    <h1>네 번의 무대,<br>네 번의 학년.</h1>
+    <p class="lead" id="aboutText">박자를 맞추면 그 해의 이야기가 열려요.</p>
+    <ol class="howto">
+      <li>떨어지는 화살표가 판정선에 닿을 때 같은 방향키를 눌러요. <span class="muted">(← ↓ ↑ → 또는 D F J K)</span></li>
+      <li>정확도 60% 이상이면 무대 클리어, 그 학년의 기록이 공개돼요.</li>
+      <li>네 무대를 모두 마치면 커튼콜 보드에 이름과 응원을 남길 수 있어요.</li>
+    </ol>
+    <button class="primary" id="startBtn" type="button">공연 시작하기</button>
+  </section>
+
+  <!-- 2. 스테이지 선택 -->
+  <section class="screen" id="select">
+    <p class="eyebrow">Setlist</p>
+    <h2>오늘의 셋리스트</h2>
+    <ol class="setlist" id="setlist"></ol>
+  </section>
+
+  <!-- 3. 플레이 -->
+  <section class="screen" id="play">
+    <div class="hud">
+      <div><span class="eyebrow" id="hudStage">Stage</span><strong id="hudTitle"></strong></div>
+      <div class="hud-right"><span id="hudScore">0</span><span class="muted" id="hudCombo"></span></div>
+    </div>
+    <div class="stage-wrap">
+      <canvas id="canvas" width="360" height="520"></canvas>
+      <div class="countdown" id="countdown"></div>
+    </div>
+    <div class="pads" id="pads">
+      <button type="button" data-lane="0">←</button>
+      <button type="button" data-lane="1">↓</button>
+      <button type="button" data-lane="2">↑</button>
+      <button type="button" data-lane="3">→</button>
+    </div>
+  </section>
+
+  <!-- 4. 결과 + 챕터 공개 -->
+  <section class="screen" id="result">
+    <p class="eyebrow" id="resultEyebrow"></p>
+    <h2 id="resultTitle"></h2>
+    <p class="stats" id="resultStats"></p>
+    <article class="chapter" id="chapter"></article>
+    <div class="actions" id="resultActions"></div>
+  </section>
+
+  <!-- 5. 커튼콜 -->
+  <section class="screen" id="curtain">
+    <p class="eyebrow">Curtain Call</p>
+    <h2 id="ownerHeadline"></h2>
+    <p class="lead" id="ownerAbout"></p>
+    <p class="links" id="ownerLinks"></p>
+
+    <div class="timeline" id="timeline"></div>
+
+    <div class="board">
+      <section>
+        <h3>리더보드</h3>
+        <form id="scoreForm" class="inline-form">
+          <span class="muted" id="myScore"></span>
+          <input id="scoreName" maxlength="12" placeholder="이름" required>
+          <button type="submit">기록 남기기</button>
+        </form>
+        <ol class="ranking" id="ranking"></ol>
+      </section>
+      <section>
+        <h3>응원 한마디</h3>
+        <form id="cheerForm" class="stack-form">
+          <input id="cheerName" maxlength="12" placeholder="이름 (선택)">
+          <textarea id="cheerMsg" maxlength="80" rows="2" placeholder="80자 이내로 남겨주세요" required></textarea>
+          <button type="submit">응원 남기기</button>
+        </form>
+        <ul class="cheers" id="cheers"></ul>
+      </section>
+    </div>
+    <p class="note" id="dbNote"></p>
+    <div class="actions"><button class="ghost" type="button" id="replayBtn">처음부터 다시 공연하기</button></div>
+  </section>
+
+  <footer class="foot"><span id="podInfo"></span></footer>
+  <script src="game.js"></script>
 </body>
 </html>
