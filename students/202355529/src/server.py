@@ -1,0 +1,208 @@
+"""Tia's Roadmap - web tier
+
+Python 표준 라이브러리만 사용하는 작은 웹 서버.
+- 정적 파일(게임 화면) 제공
+- /api/portfolio : ConfigMap으로 주입된 포트폴리오 JSON 반환
+- /api/scores    : 리더보드 (Redis Sorted Set)
+- /api/cheers    : 응원 방명록 (Redis List)
+- /healthz       : Liveness Probe (프로세스 생존 확인)
+- /readyz        : Readiness Probe (Redis 연결까지 확인)
+
+외부 패키지(pip install) 없이 동작하도록 Redis 프로토콜(RESP)을 직접 구현했다.
+"""
+
+import html
+import json
+import mimetypes
+import os
+import socket
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+PORT = int(os.environ.get("PORT", "8080"))
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", "/opt/app-root/web")).resolve()
+PORTFOLIO_FILE = Path(os.environ.get("PORTFOLIO_FILE", "/opt/app-root/data/portfolio.json"))
+REDIS_HOST = os.environ.get("REDIS_HOST", "tia-redis")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
+STAGE_TITLE = os.environ.get("STAGE_TITLE", "Tia's Roadmap")
+
+SCORE_KEY = "tia:scores"
+CHEER_KEY = "tia:cheers"
+MAX_SCORE = 1_000_000
+MAX_NAME = 12
+MAX_MESSAGE = 80
+MAX_CHEERS = 100
+
+
+# ---------------------------------------------------------------- Redis (RESP)
+class RedisError(Exception):
+    pass
+
+
+def _encode(*args):
+    out = [f"*{len(args)}\r\n".encode()]
+    for a in args:
+        b = a if isinstance(a, bytes) else str(a).encode()
+        out.append(f"${len(b)}\r\n".encode() + b + b"\r\n")
+    return b"".join(out)
+
+
+def _read_reply(f):
+    line = f.readline()
+    if not line:
+        raise RedisError("connection closed")
+    kind, rest = line[:1], line[1:-2]
+    if kind == b"+":
+        return rest.decode()
+    if kind == b"-":
+        raise RedisError(rest.decode())
+    if kind == b":":
+        return int(rest)
+    if kind == b"$":
+        n = int(rest)
+        if n == -1:
+            return None
+        data = f.read(n + 2)[:-2]
+        return data.decode()
+    if kind == b"*":
+        n = int(rest)
+        return None if n == -1 else [_read_reply(f) for _ in range(n)]
+    raise RedisError(f"unknown reply: {line!r}")
+
+
+def redis(*args):
+    """요청마다 짧게 연결한다. 트래픽이 적은 과제 규모에서는 이 방식이 가장 단순하고,
+    Redis Pod가 재시작돼도 다음 요청에서 자동으로 다시 붙는다."""
+    with socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=2) as s:
+        f = s.makefile("rb")
+        if REDIS_PASSWORD:
+            s.sendall(_encode("AUTH", REDIS_PASSWORD))
+            _read_reply(f)
+        s.sendall(_encode(*args))
+        return _read_reply(f)
+
+
+# ---------------------------------------------------------------- helpers
+def clean_text(value, limit):
+    text = " ".join(str(value or "").split())[:limit]
+    return html.escape(text)  # 저장 전에 이스케이프 → 화면에 그대로 넣어도 스크립트가 실행되지 않음
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "TiaRoadmap/1.0"
+
+    def log_message(self, fmt, *args):
+        print(f"[{time.strftime('%H:%M:%S')}] {self.address_string()} {fmt % args}", flush=True)
+
+    # ---- response helpers
+    def _json(self, status, payload):
+        body = json.dumps(payload, ensure_ascii=False).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _body(self):
+        length = min(int(self.headers.get("Content-Length") or 0), 4096)
+        try:
+            return json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, UnicodeDecodeError):
+            return None
+
+    # ---- routing
+    def do_GET(self):
+        path = self.path.split("?", 1)[0]
+        if path == "/healthz":
+            return self._json(200, {"status": "alive"})
+        if path == "/readyz":
+            try:
+                redis("PING")
+                return self._json(200, {"status": "ready", "redis": "ok"})
+            except (OSError, RedisError) as e:
+                return self._json(503, {"status": "not-ready", "redis": str(e)})
+        if path == "/api/info":
+            return self._json(200, {"title": STAGE_TITLE, "pod": socket.gethostname()})
+        if path == "/api/portfolio":
+            try:
+                return self._json(200, json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8")))
+            except (OSError, ValueError) as e:
+                return self._json(500, {"error": f"portfolio unavailable: {e}"})
+        if path == "/api/scores":
+            return self._db(self._get_scores)
+        if path == "/api/cheers":
+            return self._db(self._get_cheers)
+        return self._static(path)
+
+    def do_POST(self):
+        path = self.path.split("?", 1)[0]
+        data = self._body()
+        if data is None:
+            return self._json(400, {"error": "invalid json"})
+        if path == "/api/scores":
+            return self._db(lambda: self._post_score(data))
+        if path == "/api/cheers":
+            return self._db(lambda: self._post_cheer(data))
+        return self._json(404, {"error": "not found"})
+
+    def _db(self, fn):
+        try:
+            return fn()
+        except (OSError, RedisError) as e:
+            return self._json(503, {"error": f"database unavailable: {e}"})
+
+    # ---- API
+    def _get_scores(self):
+        raw = redis("ZREVRANGE", SCORE_KEY, 0, 9, "WITHSCORES") or []
+        top = [{"name": raw[i], "score": int(float(raw[i + 1]))} for i in range(0, len(raw), 2)]
+        return self._json(200, {"scores": top})
+
+    def _post_score(self, data):
+        name = clean_text(data.get("name"), MAX_NAME)
+        try:
+            score = int(data.get("score"))
+        except (TypeError, ValueError):
+            score = -1
+        if not name or not (0 <= score <= MAX_SCORE):
+            return self._json(400, {"error": "name(1~12자)과 score(0~1,000,000)가 필요해요"})
+        redis("ZADD", SCORE_KEY, "GT", score, name)  # 같은 이름이면 최고 점수만 유지
+        rank = redis("ZREVRANK", SCORE_KEY, name)
+        return self._json(201, {"name": name, "score": score, "rank": (rank or 0) + 1})
+
+    def _get_cheers(self):
+        raw = redis("LRANGE", CHEER_KEY, 0, 29) or []
+        return self._json(200, {"cheers": [json.loads(x) for x in raw]})
+
+    def _post_cheer(self, data):
+        name = clean_text(data.get("name"), MAX_NAME) or "익명의 관객"
+        message = clean_text(data.get("message"), MAX_MESSAGE)
+        if not message:
+            return self._json(400, {"error": "message(1~80자)가 필요해요"})
+        item = {"name": name, "message": message, "at": int(time.time())}
+        redis("LPUSH", CHEER_KEY, json.dumps(item, ensure_ascii=False))
+        redis("LTRIM", CHEER_KEY, 0, MAX_CHEERS - 1)
+        return self._json(201, item)
+
+    # ---- static files
+    def _static(self, path):
+        rel = "index.html" if path in ("", "/") else path.lstrip("/")
+        target = (STATIC_DIR / rel).resolve()
+        if STATIC_DIR not in target.parents or not target.is_file():
+            return self._json(404, {"error": "not found"})
+        body = target.read_bytes()
+        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        if ctype.startswith("text/") or ctype.endswith("javascript"):
+            ctype += "; charset=utf-8"
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+if __name__ == "__main__":
+    print(f"{STAGE_TITLE} listening on :{PORT} (redis={REDIS_HOST}:{REDIS_PORT})", flush=True)
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
