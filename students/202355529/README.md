@@ -3,7 +3,6 @@
 > 지능형IoT플랫폼 8주차 과제 · 202355529 김태란
 > **박자를 맞추면 그 해의 이야기가 열리는 리듬 게임형 포트폴리오** (Web + Redis 2-tier)
 
-<!-- TODO: 배포 후 Route 주소로 접속한 메인 화면 캡처 -->
 ![메인 화면](images/01-intro.png)
 
 ---
@@ -128,8 +127,6 @@ oc rollout restart deployment/tia-web
 
 ## 5. 배포 결과
 
-<!-- TODO: 아래 캡처를 images/ 에 저장 -->
-
 ### oc get all
 
 ```text
@@ -176,9 +173,11 @@ secret/tia-redis-secret   Opaque   1      8m46s
 
 ### 브라우저 접속 화면
 
-| 게임 플레이 | 무대 클리어 | 커튼콜 보드 |
-|---|---|---|
-| ![play](images/03-play.png) | ![clear](images/04-clear.png) | ![curtain](images/05-curtain.png) |
+| 게임 플레이 | 무대 클리어 |
+|---|---|
+| ![play](images/03-play.png) | ![clear](images/04-clear.png) |
+| **무대 실패** | **커튼콜 보드** |
+| ![fail](images/06-fail.png) | ![curtain](images/05-curtain.png) |
 
 ### 재현성 검증
 
