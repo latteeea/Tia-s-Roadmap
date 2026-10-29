@@ -1,0 +1,66 @@
+{
+  "owner": "김태란",
+  "nickname": "Tia",
+  "headline": "예민함을 강점으로 바꾸며 성장하는 개발자",
+  "about": "부산대학교 정보컴퓨터공학부 4학년. 무대 위에서 박자를 맞추던 사람이, 이제는 시스템의 박자를 맞추고 있어요.",
+  "links": [
+    { "label": "GitHub", "url": "https://github.com/latteeea" },
+    { "label": "Instagram", "url": "https://www.instagram.com/la88ev" }
+  ],
+  "stages": [
+    {
+      "year": 2023,
+      "grade": "1학년",
+      "title": "첫 박자",
+      "subtitle": "Audition",
+      "bpm": 92,
+      "summary": "하고 싶은 걸 일단 다 해보던 해. 세 개의 동아리에 들어가며 무대, 사람, 코드를 처음 만났어요.",
+      "items": [
+        { "tag": "Dance", "text": "댄스동아리 UCDC 입단" },
+        { "tag": "Community", "text": "학과 학생회 홍보부 활동 시작" },
+        { "tag": "Teaching", "text": "코딩교육봉사동아리 입부 — 마이크로비트·아두이노 수업 보조" }
+      ]
+    },
+    {
+      "year": 2024,
+      "grade": "2학년",
+      "title": "무대 위에서",
+      "subtitle": "On Stage",
+      "bpm": 104,
+      "summary": "가장 많은 무대에 섰던 해. 사람들 앞에 서는 법과 팀으로 결과를 내는 법을 배웠어요.",
+      "items": [
+        { "tag": "Dance", "text": "UCDC 교내외 공연 약 46건, 축제 무대에서 한 곡 리더" },
+        { "tag": "Community", "text": "학과 학생회 홍보부장 — 공지·SNS·학과 축제 홍보" },
+        { "tag": "Hackathon", "text": "해커톤 장려상" }
+      ]
+    },
+    {
+      "year": 2025,
+      "grade": "3학년",
+      "title": "리드하는 자리",
+      "subtitle": "Lead",
+      "bpm": 116,
+      "summary": "따라가던 사람에서 이끄는 사람으로. 동아리 운영과 실서비스 개발을 동시에 책임졌어요.",
+      "items": [
+        { "tag": "Teaching", "text": "코딩교육봉사동아리 회장 — 교구 확보와 커리큘럼 개편" },
+        { "tag": "Dev", "text": "헬스케어 스타트업 개발자 합류 — 앱·웹·백엔드·추천 시스템" },
+        { "tag": "Hackathon", "text": "SW창의융합해커톤 대상 (팀)" },
+        { "tag": "Teaching", "text": "영어학원 강사 아르바이트" }
+      ]
+    },
+    {
+      "year": 2026,
+      "grade": "4학년",
+      "title": "앵콜",
+      "subtitle": "Encore",
+      "bpm": 128,
+      "summary": "현장에서 배운 것을 연구로 가져가는 중. 더 넓은 무대를 준비하고 있어요.",
+      "items": [
+        { "tag": "Dev", "text": "헬스케어 스타트업 개발 마무리 (휴학, 서울)" },
+        { "tag": "Global", "text": "미국 TeX-Corps 실험실창업탐색 프로그램 참여" },
+        { "tag": "Research", "text": "연결지능연구실 학부연구생 — FinOps 연구" },
+        { "tag": "Dev", "text": "스타트업 개발 인턴" }
+      ]
+    }
+  ]
+}

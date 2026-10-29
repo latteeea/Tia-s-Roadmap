@@ -1,0 +1,68 @@
+# App tier: Python 웹 서버. 코드·화면·데이터는 모두 ConfigMap으로 주입한다 (이미지 빌드 없음).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tia-web
+  labels:
+    app.kubernetes.io/name: tia-web
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: tia-roadmap
+    app.openshift.io/runtime: python
+  annotations:
+    # OpenShift Topology 화면에 web → redis 연결 화살표를 그려준다
+    app.openshift.io/connects-to: '[{"apiVersion":"apps/v1","kind":"Deployment","name":"tia-redis"}]'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tia-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tia-web
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: tia-roadmap
+    spec:
+      containers:
+        - name: web
+          image: registry.access.redhat.com/ubi9/python-311:latest
+          command: ["python3", "/opt/app-root/app/server.py"]
+          env:
+            - name: PORT
+              value: "8080"          # 비루트 사용자는 1024 미만 포트를 쓸 수 없다
+            - name: REDIS_HOST
+              value: tia-redis       # Redis Service 이름 (클러스터 내부 DNS)
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tia-redis-secret
+                  key: REDIS_PASSWORD
+            - name: STATIC_DIR
+              value: /opt/app-root/web
+            - name: PORTFOLIO_FILE
+              value: /opt/app-root/data/portfolio.json
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: app
+              mountPath: /opt/app-root/app
+              readOnly: true
+            - name: static
+              mountPath: /opt/app-root/web
+              readOnly: true
+            - name: portfolio
+              mountPath: /opt/app-root/data
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: tia-web-app
+        - name: static
+          configMap:
+            name: tia-web-static
+        - name: portfolio
+          configMap:
+            name: tia-portfolio

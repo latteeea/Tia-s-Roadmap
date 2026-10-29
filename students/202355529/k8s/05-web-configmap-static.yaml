@@ -1,0 +1,23 @@
+# 자동 생성 파일: scripts/gen_configmaps.py 로 다시 만든다. 직접 수정하지 말 것.
+# 게임 화면 정적 파일
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tia-web-static
+  labels:
+    app.kubernetes.io/name: tia-web
+    app.kubernetes.io/part-of: tia-roadmap
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="ko">
+    <head><meta charset="utf-8"><title>Tia's Roadmap</title></head>
+    <body>
+      <h1>Tia's Roadmap</h1>
+      <p id="status">무대 준비 중…</p>
+      <script>
+        Promise.all([fetch("/api/portfolio").then(r => r.json()), fetch("/readyz").then(r => r.json())])
+          .then(([p, r]) => { document.getElementById("status").textContent = `${p.owner} · ${p.headline} · redis ${r.redis}`; });
+      </script>
+    </body>
+    </html>

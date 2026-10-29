@@ -1,0 +1,17 @@
+# 외부 공개 주소. host를 비워두면 OpenShift가 클러스터 도메인으로 자동 생성한다.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: tia-web
+  labels:
+    app.kubernetes.io/name: tia-web
+    app.kubernetes.io/part-of: tia-roadmap
+spec:
+  to:
+    kind: Service
+    name: tia-web
+  port:
+    targetPort: http
+  tls:
+    termination: edge                       # HTTPS는 Router에서 종료, Pod는 HTTP 8080
+    insecureEdgeTerminationPolicy: Redirect # http:// 접속은 https:// 로 리다이렉트

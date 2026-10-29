@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tia-web
+  labels:
+    app.kubernetes.io/name: tia-web
+    app.kubernetes.io/part-of: tia-roadmap
+spec:
+  selector:
+    app.kubernetes.io/name: tia-web   # Deployment의 Pod label과 일치해야 Endpoints가 생긴다
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

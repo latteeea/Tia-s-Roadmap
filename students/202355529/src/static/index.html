@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Tia's Roadmap</title></head>
+<body>
+  <h1>Tia's Roadmap</h1>
+  <p id="status">무대 준비 중…</p>
+  <script>
+    Promise.all([fetch("/api/portfolio").then(r => r.json()), fetch("/readyz").then(r => r.json())])
+      .then(([p, r]) => { document.getElementById("status").textContent = `${p.owner} · ${p.headline} · redis ${r.redis}`; });
+  </script>
+</body>
+</html>
