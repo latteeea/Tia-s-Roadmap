@@ -39,7 +39,7 @@ flowchart LR
     R --> SW[Service<br/>tia-web :8080]
     SW --> PW[Pod: tia-web<br/>ubi9/python-311]
     PW -->|RESP :6379| SR[Service<br/>tia-redis]
-    SR --> PR[Pod: tia-redis<br/>rhel9/redis-7]
+    SR --> PR[Pod: tia-redis<br/>sclorg/redis-7-c9s]
     PR --- PVC[(PVC<br/>tia-redis-data 1Gi)]
 
     CM1[ConfigMap<br/>tia-web-app] -.server.py.-> PW
@@ -83,7 +83,7 @@ Redis Service에는 Route를 만들지 않아 클러스터 외부에서 DB에 �
 | Tier | 이미지 | 포트 | 선택 이유 |
 |---|---|---|---|
 | Web | `registry.access.redhat.com/ubi9/python-311:latest` | 8080 | Red Hat UBI 이미지로 OpenShift의 임의 UID 비루트 실행을 지원. Python 표준 라이브러리만으로 서버를 구현해 추가 패키지가 필요 없음 |
-| DB | `registry.access.redhat.com/rhel9/redis-7:latest` | 6379 | Red Hat 공식 Redis 이미지로 비루트 실행 지원, Docker Hub 다운로드 제한 회피 |
+| DB | `quay.io/sclorg/redis-7-c9s:latest` | 6379 | Red Hat 이미지와 같은 sclorg 소스로 빌드된 CentOS Stream 9 기반 공개 이미지. 비루트(임의 UID) 실행 지원, 인증 없이 pull 가능, Docker Hub 다운로드 제한 회피 |
 
 두 이미지 모두 직접 빌드하지 않고 공개 이미지를 그대로 사용했습니다. 실행 명령은 Deployment의 `command`로 지정했습니다.
 
@@ -172,7 +172,11 @@ curl -s https://<route>/api/scores
 
 ### 배포 중 겪은 오류
 
-<!-- TODO: 실제 배포하면서 겪은 오류가 있으면 증상 → 원인 → 해결 순으로 작성. 없으면 이 소제목 삭제 -->
+**1. Redis Pod `ImagePullBackOff`**
+
+- **증상**: `oc apply -f k8s/` 후 `tia-redis` Pod가 `ImagePullBackOff`, `tia-web`은 Redis에 연결하지 못해 Readiness 실패(0/1)
+- **원인**: `oc describe pod`의 이벤트에 `This repo requires terms acceptance and is only available on registry.redhat.io`가 표시됐습니다. `rhel9/redis-7`은 `registry.access.redhat.com`(인증 불필요)이 아니라 로그인이 필요한 `registry.redhat.io`에서만 받을 수 있는 이미지였습니다. 반면 Web의 `ubi9/python-311`은 UBI라서 인증 없이 받을 수 있었습니다.
+- **해결**: 같은 [sclorg/redis-container](https://github.com/sclorg/redis-container) 소스로 빌드된 공개 이미지 `quay.io/sclorg/redis-7-c9s`로 교체했습니다. 실행 사용자(1001)와 데이터 경로(`/var/lib/redis/data`)가 같아서 이미지 외 설정은 바꾸지 않았습니다. 채점 환경에서도 pull 시크릿 없이 배포되도록, 교체 전에 `oc image info`로 인증 없이 매니페스트를 조회할 수 있는지 확인했습니다.
 
 ### 설계 단계에서 고민한 점
 
@@ -192,7 +196,7 @@ AI가 작성한 YAML은 본인 Sandbox에 직접 배포해 동작을 확인한 �
 
 **참고 문서**
 
-- [Red Hat Ecosystem Catalog — rhel9/redis-7](https://catalog.redhat.com/en/software/containers/rhel9/redis-7/64881353e0e10aaf1cbac8b7)
+- [quay.io/sclorg/redis-7-c9s](https://quay.io/repository/sclorg/redis-7-c9s)
 - [sclorg/redis-container (Redis 이미지 환경변수·데이터 경로)](https://github.com/sclorg/redis-container)
 - [Redis Serialization Protocol (RESP)](https://redis.io/docs/latest/develop/reference/protocol-spec/)
 - [Kubernetes — Configure Liveness, Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)

@@ -1,4 +1,4 @@
-# DB tier: Redis (비루트 실행을 지원하는 Red Hat 이미지)
+# DB tier: Redis (비루트 실행을 지원하는 sclorg 공개 이미지, 인증 없이 pull 가능)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: redis
-          image: registry.access.redhat.com/rhel9/redis-7:latest
+          image: quay.io/sclorg/redis-7-c9s:latest
           # 이미지 기본 스크립트 대신 설정을 명시적으로 지정한다.
           # --appendonly yes : 쓰기마다 AOF 파일에 기록 → 재시작 후에도 데이터 복구
           command:
