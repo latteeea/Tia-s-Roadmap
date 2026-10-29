@@ -1,0 +1,15 @@
+# 리더보드·응원 데이터를 Pod 수명과 분리해서 보관하는 볼륨.
+# Pod가 삭제·재생성돼도 /var/lib/redis/data 의 AOF 파일이 남아 데이터가 유지된다.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tia-redis-data
+  labels:
+    app.kubernetes.io/name: tia-redis
+    app.kubernetes.io/part-of: tia-roadmap
+spec:
+  accessModes:
+    - ReadWriteOnce        # 한 노드에서만 마운트 → Redis Pod는 1개만 둔다
+  resources:
+    requests:
+      storage: 1Gi
