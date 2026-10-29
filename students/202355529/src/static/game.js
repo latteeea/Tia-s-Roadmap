@@ -56,20 +56,38 @@
   // d0부터 step 간격으로 한 줄씩 떠오르게 하는 data-reveal 속성
   const rv = (ms) => `data-reveal style="--d:${ms}ms"`;
 
+  // metric은 있는 항목에만 붙인다
+  const metricHTML = (it) => (it.metric ? `<em class="metric">${esc(it.metric)}</em>` : "");
+
+  // 커튼콜 프로그램북 목록: 태그 | 제목·설명 | 수치
   function itemsHTML(stage, d0) {
     return stage.items.map((it, k) =>
-      `<li ${rv(d0 + k * 70)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span><span>${esc(it.text)}</span></li>`).join("");
+      `<li ${rv(d0 + k * 70)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span>
+        <span>${it.title ? `<b>${esc(it.title)}</b>` : ""}${esc(it.text)}</span>${metricHTML(it)}</li>`).join("");
+  }
+
+  // 클리어 화면: 항목마다 칩 카드 한 장
+  function chipsHTML(stage, d0) {
+    return stage.items.map((it, k) =>
+      `<li class="chip" ${rv(d0 + k * 60)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span>
+        ${it.title ? `<strong>${esc(it.title)}</strong>` : ""}<span class="chip-text">${esc(it.text)}</span>${metricHTML(it)}</li>`).join("");
   }
 
   function chapterHTML(stage, d0 = 0) {
+    const hl = stage.highlight
+      ? `<div class="hl"><span class="hl-value">${esc(stage.highlight.value)}</span><span class="hl-label">${esc(stage.highlight.label)}</span></div>`
+      : "";
     return `<div class="ch-head" ${rv(d0)}><h3>${esc(stage.year)} · ${esc(stage.title)}</h3><span class="muted">${esc(stage.grade)}</span></div>
-      <p ${rv(d0 + 80)}>${esc(stage.summary)}</p><ul class="items">${itemsHTML(stage, d0 + 160)}</ul>`;
+      <div class="ch-hl" ${rv(d0 + 80)}>${hl}<p>${esc(stage.summary)}</p></div>
+      <ul class="chips">${chipsHTML(stage, d0 + 180)}</ul>`;
   }
 
-  // 커튼콜 프로그램북의 한 페이지: 왼쪽에 연도, 오른쪽에 그 해의 기록
+  // 커튼콜 프로그램북의 한 페이지: 왼쪽에 연도·하이라이트, 오른쪽에 그 해의 기록
   function programHTML(stage, d0) {
+    const hl = stage.highlight
+      ? `<span class="p-hl">${esc(stage.highlight.value)}<small>${esc(stage.highlight.label)}</small></span>` : "";
     return `<article class="program">
-      <div ${rv(d0)}><span class="p-year">${esc(stage.year)}</span><span class="p-grade">${esc(stage.grade)}</span></div>
+      <div ${rv(d0)}><span class="p-year">${esc(stage.year)}</span><span class="p-grade">${esc(stage.grade)}</span>${hl}</div>
       <div><h4 ${rv(d0 + 60)}>${esc(stage.title)}<small>${esc(stage.subtitle)}</small></h4>
         <p ${rv(d0 + 120)}>${esc(stage.summary)}</p><ul class="items">${itemsHTML(stage, d0 + 180)}</ul></div>
     </article>`;
@@ -386,7 +404,11 @@
       $("ownerAbout").textContent = p.about;
       $("ownerLinks").innerHTML = (p.links || [])
         .map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
-      $("timeline").innerHTML = p.stages.map((s, k) => programHTML(s, 1150 + k * 120)).join("");
+      $("ownerFacts").innerHTML = (p.facts || [])
+        .map((f) => `<div><dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd></div>`).join("");
+      $("timeline").innerHTML = p.stages.map((s, k) => programHTML(s, 1250 + k * 120)).join("");
+      $("roadmap").innerHTML = (p.roadmap || [])
+        .map((r) => `<li><span class="r-year">${esc(r.year)}</span><h4>${esc(r.title)}</h4><p>${esc(r.text)}</p></li>`).join("");
       const total = totalScore();
       $("myScore").textContent = total > 0
         ? `내 총점 ${total.toLocaleString()}점 (클리어한 무대 ${state.cleared.size}/${p.stages.length})`
