@@ -399,7 +399,95 @@
     });
   });
 
-  $("startBtn").addEventListener("click", () => { ensureAudio(); renderSetlist(); });
+  // ------------------------------------------------------------ intro ticket
+  const MOTION = document.documentElement.classList.contains("motion");
+  const FINE = matchMedia("(pointer: fine)").matches;
+  const ticket = $("ticket");
+
+  // 셋리스트 줄은 HTML에 미리 있고 글자만 바꿔서, 등장 애니메이션이 다시 시작되지 않게 한다
+  function renderTicket(p) {
+    document.querySelectorAll("#ticketSetlist li").forEach((li, i) => {
+      const st = p.stages[i];
+      if (!st) return;
+      li.querySelector(".y").textContent = st.year;
+      li.querySelector(".ti").innerHTML = `${esc(st.title)}<small>${esc(st.subtitle)}</small>`;
+      li.querySelector(".bpm b").textContent = st.bpm;
+      li.querySelector(".bpm i").style.setProperty("--beat", `${60 / st.bpm}s`);
+    });
+  }
+
+  // 마우스를 따라 티켓이 살짝 기울고 빛 반사가 따라온다
+  if (MOTION && FINE) {
+    const clamp = (v) => Math.min(1, Math.max(0, v));
+    $("intro").addEventListener("pointermove", (e) => {
+      const r = ticket.getBoundingClientRect();
+      const x = clamp((e.clientX - r.left) / r.width), y = clamp((e.clientY - r.top) / r.height);
+      ticket.classList.add("tilting");
+      ticket.style.setProperty("--ry", `${(x - 0.5) * 8}deg`);
+      ticket.style.setProperty("--rx", `${(0.5 - y) * 8}deg`);
+      ticket.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      ticket.style.setProperty("--my", `${e.clientY - r.top}px`);
+    });
+    $("intro").addEventListener("pointerleave", () => {
+      ticket.classList.remove("tilting");
+      ticket.style.setProperty("--rx", "0deg");
+      ticket.style.setProperty("--ry", "0deg");
+    });
+  }
+
+  // 입장: 꼬리표가 찢겨 나간 뒤 셋리스트로
+  $("startBtn").addEventListener("click", (e) => {
+    ensureAudio();
+    if (!MOTION || !state.portfolio) return renderSetlist();
+    e.currentTarget.disabled = true;
+    ticket.classList.remove("tilting");
+    ticket.classList.add("torn");
+    setTimeout(renderSetlist, 700);
+  });
+
+  // ------------------------------------------------------------ cursor trail
+  // 마우스가 지나간 길을 짧게 남긴다 (말차 → 핑크). 꼬리가 다 사라지면 그리기를 멈춘다
+  (() => {
+    const cv = $("trail");
+    const cx = cv.getContext("2d");
+    if (!MOTION || !FINE || !cx) return;
+    const LIFE = 350, HEAD = [127, 156, 122], TAIL = [214, 162, 160];
+    const mix = (a, b, f) => a + (b - a) * f;
+    let pts = [], frame = 0;
+
+    function resize() {
+      const d = window.devicePixelRatio || 1;
+      cv.width = innerWidth * d; cv.height = innerHeight * d;
+      cx.setTransform(d, 0, 0, d, 0, 0);
+    }
+    function draw() {
+      const t = performance.now();
+      pts = pts.filter((p) => t - p.t < LIFE);
+      cx.clearRect(0, 0, innerWidth, innerHeight);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+        const f = Math.min(1, (t - b.t) / LIFE);
+        const [r, g, bl] = HEAD.map((h, k) => Math.round(mix(h, TAIL[k], f)));
+        cx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${1 - f})`;
+        cx.lineWidth = mix(3, 0.5, f);
+        cx.beginPath();
+        cx.moveTo((a.x + b.x) / 2, (a.y + b.y) / 2);
+        cx.quadraticCurveTo(b.x, b.y, (b.x + c.x) / 2, (b.y + c.y) / 2);
+        cx.stroke();
+      }
+      frame = pts.length ? requestAnimationFrame(draw) : 0;
+    }
+
+    resize();
+    addEventListener("resize", resize);
+    addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+      for (const ev of evs.length ? evs : [e]) pts.push({ x: ev.clientX, y: ev.clientY, t: performance.now() });
+      if (!frame) frame = requestAnimationFrame(draw);
+    });
+  })();
+
   $("skipBtn").addEventListener("click", () => {
     if (state.current) state.current.running = false;
     openCurtain();
@@ -412,9 +500,9 @@
     .then((r) => r.json())
     .then((p) => {
       state.portfolio = p;
-      if (p.about) $("aboutText").textContent = p.about;
+      renderTicket(p);
     })
-    .catch(() => { $("aboutText").textContent = "포트폴리오 데이터를 불러오지 못했어요. 잠시 후 새로고침해주세요."; });
+    .catch(() => { $("introNote").textContent = "포트폴리오 데이터를 불러오지 못했어요. 잠시 후 새로고침해주세요."; });
   fetch("/api/info").then((r) => r.json())
     .then((i) => { $("podInfo").textContent = `served by pod ${i.pod} · OpenShift Developer Sandbox`; })
     .catch(() => {});

@@ -106,7 +106,7 @@ oc get route tia-web -o jsonpath='https://{.spec.host}{"\n"}'
 
 | 경로 | 예상 응답 |
 |---|---|
-| `https://<route>/` | 인트로 화면 "네 번의 무대, 네 번의 학년." |
+| `https://<route>/` | 인트로 화면 (공연 티켓 · 셋리스트) |
 | `https://<route>/readyz` | `{"status": "ready", "redis": "ok"}` |
 | `https://<route>/api/portfolio` | 포트폴리오 JSON |
 | `https://<route>/api/scores` | `{"scores": [...]}` (처음엔 빈 배열) |
@@ -133,7 +133,41 @@ oc rollout restart deployment/tia-web
 ### oc get all
 
 ```text
-(oc get all 출력 붙여넣기)
+$ oc get all -l app.kubernetes.io/part-of=tia-roadmap
+NAME                             READY   STATUS    RESTARTS   AGE
+pod/tia-redis-6f9644d5cf-brjcd   1/1     Running   0          31s
+pod/tia-web-77d78f7d88-klx42     1/1     Running   0          8m24s
+
+NAME                TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/tia-redis   ClusterIP   172.30.28.107   <none>        6379/TCP   8m29s
+service/tia-web     ClusterIP   172.30.146.38   <none>        8080/TCP   8m25s
+
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/tia-redis   1/1     1            1           8m29s
+deployment.apps/tia-web     1/1     1            1           8m25s
+
+NAME                                   DESIRED   CURRENT   READY   AGE
+replicaset.apps/tia-redis-6f9644d5cf   1         1         1       8m29s
+replicaset.apps/tia-web-77d78f7d88     1         1         1       8m25s
+
+NAME                               HOST/PORT                                                   PATH   SERVICES   PORT   TERMINATION     WILDCARD
+route.route.openshift.io/tia-web   tia-web-taeran4767-dev.apps.rm3.7wse.p1.openshiftapps.com          tia-web    http   edge/Redirect   None
+```
+
+`oc get all`에 나오지 않는 나머지 Object:
+
+```text
+$ oc get pvc,configmap,secret -l app.kubernetes.io/part-of=tia-roadmap
+NAME                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS
+persistentvolumeclaim/tia-redis-data   Bound    pvc-a7d06260-f3b7-49a5-a30f-28e96846de9e   1Gi        RWO            gp3
+
+NAME                       DATA   AGE
+configmap/tia-portfolio    1      8m42s
+configmap/tia-web-app      1      8m44s
+configmap/tia-web-static   3      8m43s
+
+NAME                      TYPE     DATA   AGE
+secret/tia-redis-secret   Opaque   1      8m46s
 ```
 
 ### Topology
@@ -153,7 +187,7 @@ oc delete -f k8s/
 oc apply -f k8s/
 ```
 
-삭제 후 `k8s/` 폴더만으로 재배포해 정상 동작을 확인했습니다.
+삭제 후 `k8s/` 폴더만으로 재배포해 정상 동작을 확인했습니다. 약 30초 안에 두 Pod가 `1/1 Running`이 되고, PVC가 새로 Bound되며, Route의 `/`, `/readyz`, `/api/scores`가 모두 200을 반환했습니다.
 
 ### 데이터 유지 검증 (PVC)
 
@@ -164,7 +198,26 @@ oc delete pod -l app.kubernetes.io/name=tia-redis
 curl -s https://<route>/api/scores
 ```
 
-<!-- TODO: 삭제 전/후 결과 캡처 또는 출력 붙여넣기 -->
+```text
+# 삭제 전
+$ curl -s https://tia-web-taeran4767-dev.apps.rm3.7wse.p1.openshiftapps.com/api/scores
+{"scores": [{"name": "김태란", "score": 27400}]}
+
+$ oc delete pod -l app.kubernetes.io/name=tia-redis
+pod "tia-redis-6f9644d5cf-pzzxt" deleted
+
+# 새 Pod(tia-redis-6f9644d5cf-brjcd) 로그 — PVC의 AOF 파일에서 복구
+* DB loaded from append only file: 0.001 seconds
+* Ready to accept connections
+
+# 삭제 후
+$ curl -s https://tia-web-taeran4767-dev.apps.rm3.7wse.p1.openshiftapps.com/api/scores
+{"scores": [{"name": "김태란", "score": 27400}]}
+$ curl -s https://tia-web-taeran4767-dev.apps.rm3.7wse.p1.openshiftapps.com/api/cheers
+{"cheers": [{"name": "김태란", "message": "응원합니다~^^", "at": 1793259097}]}
+```
+
+Pod가 새로 만들어져도 `appendonly yes`로 기록한 AOF 파일이 PVC(`/var/lib/redis/data`)에 남아 있어 리더보드와 방명록이 그대로 유지됐습니다.
 
 ---
 

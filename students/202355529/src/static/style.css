@@ -35,8 +35,122 @@ h3 { font-size: 14px; margin: 0 0 12px; letter-spacing: -0.02em; }
 .lead { color: #4d4a44; margin: 0 0 24px; }
 .muted { color: var(--muted); }
 
-.howto { padding-left: 18px; margin: 0 0 32px; color: #4d4a44; font-size: 14px; }
-.howto li { margin-bottom: 6px; }
+/* intro: 공연 티켓 */
+.ticket-wrap { max-width: 640px; margin: 4px auto 0; }
+.ticket {
+  --rx: 0deg; --ry: 0deg; --mx: 50%; --my: 50%; --notch: 11px;
+  display: grid; grid-template-columns: 1fr 156px;
+  filter: drop-shadow(0 18px 26px rgba(43, 42, 39, .13)) drop-shadow(0 1px 1px rgba(43, 42, 39, .08));
+  transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform .6s cubic-bezier(.16, 1, .3, 1);
+}
+.ticket.tilting { transition: transform .1s linear; }
+/* 본권·꼬리표에 따로 마스크를 씌워 절취선 양끝에 반원 홈을 판다 (꼬리표만 찢어져 나갈 수 있게) */
+.ticket-main {
+  position: relative; overflow: hidden; padding: 28px 30px 24px; background: var(--paper); border-radius: 18px 0 0 18px;
+  --m: radial-gradient(circle var(--notch) at 100% 0, #0000 98%, #000) top / 100% 51% no-repeat,
+       radial-gradient(circle var(--notch) at 100% 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+  -webkit-mask: var(--m); mask: var(--m);
+}
+.ticket-main::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
+  background: radial-gradient(360px circle at var(--mx) var(--my), rgba(255, 255, 255, .6), transparent 60%);
+}
+.ticket.tilting .ticket-main::after { opacity: 1; }
+.ticket-stub {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+  padding: 26px 22px 22px; background: #f7f2e8; border-left: 1.5px dashed #cfc6b4; border-radius: 0 18px 18px 0;
+  --m: radial-gradient(circle var(--notch) at 0 0, #0000 98%, #000) top / 100% 51% no-repeat,
+       radial-gradient(circle var(--notch) at 0 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+  -webkit-mask: var(--m); mask: var(--m);
+  transform-origin: 0 100%;
+}
+
+.t-stamp { position: absolute; top: 20px; right: 22px; width: 88px; height: 88px; }
+.t-stamp text { font-size: 8.5px; font-weight: 600; letter-spacing: .18em; fill: var(--ink); }
+.t-stamp .spin { transform-origin: 50px 50px; }
+.t-stamp .dot { fill: var(--matcha); transform-box: fill-box; transform-origin: center; }
+.t-eyebrow { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
+.t-title { font-size: clamp(46px, 10vw, 76px); line-height: .9; letter-spacing: -0.065em; font-weight: 800; margin: 0 0 12px; }
+.t-title .outline { color: transparent; -webkit-text-stroke: 1.4px var(--ink); }
+.t-count { font-size: 13px; color: var(--matcha-deep); letter-spacing: .02em; margin: 0 0 22px; }
+.t-setlist { list-style: none; padding: 0; margin: 0 0 20px; border-top: 1px solid var(--ink); }
+.t-setlist li { display: grid; grid-template-columns: 24px 40px 1fr auto; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+.t-setlist .n, .t-setlist .y { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.t-setlist .ti { font-weight: 600; letter-spacing: -0.035em; }
+.t-setlist .ti small { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+.t-setlist .bpm { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.t-setlist .bpm b { font-weight: 600; color: var(--ink); }
+.t-setlist .bpm i { width: 5px; height: 5px; border-radius: 50%; background: var(--matcha); }
+.t-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
+.t-meta dt, .s-info dt { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.t-meta dd { margin: 0; font-size: 13px; font-weight: 600; }
+.s-admit { font-size: 22px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; text-transform: uppercase; }
+.s-info { margin: 0; }
+.s-info div { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
+.s-info dd { margin: 0; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.s-barcode {
+  height: 44px; opacity: .85;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 1px, #0000 1px 3px, var(--ink) 3px 5px, #0000 5px 6px,
+    var(--ink) 6px 7px, #0000 7px 10px, var(--ink) 10px 13px, #0000 13px 14px);
+}
+.t-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; max-width: 640px; margin: 28px auto 0; }
+.t-hint { margin: 0; font-size: 12px; color: var(--muted); }
+.primary .arr { display: inline-block; transition: transform .3s cubic-bezier(.16, 1, .3, 1); }
+.primary:hover .arr { transform: translateX(4px); }
+
+@media (max-width: 560px) {
+  .ticket { grid-template-columns: 1fr; }
+  .ticket-main {
+    padding: 24px 22px 20px; border-radius: 18px 18px 0 0;
+    --m: radial-gradient(circle var(--notch) at 0 100%, #0000 98%, #000) left / 51% 100% no-repeat,
+         radial-gradient(circle var(--notch) at 100% 100%, #0000 98%, #000) right / 51% 100% no-repeat;
+  }
+  .ticket-stub {
+    flex-direction: row; align-items: center; gap: 18px; padding: 18px 22px;
+    border-left: 0; border-top: 1.5px dashed #cfc6b4; border-radius: 0 0 18px 18px; transform-origin: 0 0;
+    --m: radial-gradient(circle var(--notch) at 0 0, #0000 98%, #000) left / 51% 100% no-repeat,
+         radial-gradient(circle var(--notch) at 100% 0, #0000 98%, #000) right / 51% 100% no-repeat;
+  }
+  .s-admit { font-size: 16px; }
+  .s-info { flex: 1; }
+  .s-barcode { width: 60px; height: 36px; }
+  .t-stamp { top: 14px; right: 14px; width: 70px; height: 70px; }
+  .t-setlist li { grid-template-columns: 22px 34px 1fr auto; gap: 8px; }
+  .t-setlist .ti small { display: none; }
+}
+
+/* 등장 효과 (konkuk2026 RevealObserver 방식): 아래에서 떠오르며, 위로 갈수록 투명한 마스크가 걷히듯 올라간다 */
+@property --reveal { syntax: "<percentage>"; inherits: false; initial-value: 100%; }
+@property --write { syntax: "<percentage>"; inherits: false; initial-value: 100%; }
+.motion .ticket-wrap { animation: rise 1.4s cubic-bezier(.16, 1, .3, 1) .1s both; }
+.motion [data-reveal] {
+  -webkit-mask-image: linear-gradient(to top, #000 calc(var(--reveal) * 1.6 - 60%), #0000 calc(var(--reveal) * 1.6));
+  mask-image: linear-gradient(to top, #000 calc(var(--reveal) * 1.6 - 60%), #0000 calc(var(--reveal) * 1.6));
+  animation: reveal 1.1s cubic-bezier(.16, 1, .3, 1) var(--d, 0ms) both;
+}
+/* 붓으로 써 내려가듯 왼쪽에서 오른쪽으로 */
+.motion [data-reveal="write"] {
+  -webkit-mask-image: linear-gradient(100deg, #000 calc(var(--write) * 1.3 - 30%), #0000 calc(var(--write) * 1.3));
+  mask-image: linear-gradient(100deg, #000 calc(var(--write) * 1.3 - 30%), #0000 calc(var(--write) * 1.3));
+  animation: write 1.3s cubic-bezier(.55, .1, .35, 1) var(--d, 0ms) both;
+}
+.motion .t-stamp .spin { animation: spin 24s linear infinite; }
+.motion .t-stamp .dot { animation: beat .652s cubic-bezier(.2, .8, .3, 1) infinite; }
+.motion .t-setlist .bpm i { animation: beat var(--beat, .6s) cubic-bezier(.2, .8, .3, 1) infinite; }
+/* 입장: 꼬리표가 절취선에서 찢겨 떨어지고 본권은 걷힌다 */
+.motion .ticket.torn .ticket-stub { animation: tear .75s cubic-bezier(.55, 0, .7, .2) forwards; }
+.motion .ticket.torn .ticket-main { animation: leave .6s cubic-bezier(.16, 1, .3, 1) .2s forwards; }
+@keyframes rise { from { opacity: 0; transform: translateY(14vh) rotate(-2.5deg); } to { opacity: 1; transform: none; } }
+@keyframes reveal { from { opacity: 0; transform: translateY(1.4rem); --reveal: 0%; } to { opacity: 1; transform: none; --reveal: 100%; } }
+@keyframes write { from { --write: 0%; } to { --write: 100%; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes beat { 0% { transform: scale(1.8); opacity: 1; } 70%, 100% { transform: scale(1); opacity: .35; } }
+@keyframes tear { 25% { transform: rotate(5deg); } to { transform: translate(70px, 160px) rotate(24deg); opacity: 0; } }
+@keyframes leave { to { transform: translateY(-10px); opacity: 0; } }
+
+/* 마우스 꼬리선 캔버스 (게임 캔버스 스타일을 덮어쓴다) */
+.trail { position: fixed; inset: 0; width: 100%; max-width: none; height: 100%; background: none; border: 0; border-radius: 0; pointer-events: none; z-index: 50; }
 
 .primary, .ghost, form button {
   border-radius: 999px; padding: 11px 22px; cursor: pointer; font-weight: 600; font-size: 14px;

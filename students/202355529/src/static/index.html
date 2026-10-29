@@ -6,24 +6,57 @@
   <title>Tia's Roadmap</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
   <link rel="stylesheet" href="style.css">
+  <!-- 동작 줄이기 설정이 아닐 때만 등장 효과를 켠다 (그리기 전에 붙여야 깜빡이지 않음) -->
+  <script>if (!matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("motion");</script>
 </head>
 <body>
+  <canvas class="trail" id="trail" aria-hidden="true"></canvas>
   <header class="topbar">
     <span class="brand">Tia's Roadmap</span>
     <button class="link" id="skipBtn" type="button">포트폴리오 바로 보기 →</button>
   </header>
 
-  <!-- 1. 인트로 -->
+  <!-- 1. 인트로: 공연 티켓 (--d: 등장 지연) -->
   <section class="screen active" id="intro">
-    <p class="eyebrow">Rehearsal Stage · 2023 — 2026</p>
-    <h1>네 번의 무대,<br>네 번의 학년.</h1>
-    <p class="lead" id="aboutText">박자를 맞추면 그 해의 이야기가 열려요.</p>
-    <ol class="howto">
-      <li>떨어지는 화살표가 판정선에 닿을 때 같은 방향키를 눌러요. <span class="muted">(← ↓ ↑ → 또는 D F J K)</span></li>
-      <li>정확도 60% 이상이면 무대 클리어, 그 학년의 기록이 공개돼요.</li>
-      <li>네 무대를 모두 마치면 커튼콜 보드에 이름과 응원을 남길 수 있어요.</li>
-    </ol>
-    <button class="primary" id="startBtn" type="button">공연 시작하기</button>
+    <div class="ticket-wrap">
+      <div class="ticket" id="ticket">
+        <div class="ticket-main">
+          <svg class="t-stamp" viewBox="0 0 100 100" aria-hidden="true">
+            <defs><path id="ring" d="M50,50 m-38,0 a38,38 0 1,1 76,0 a38,38 0 1,1 -76,0"/></defs>
+            <g class="spin"><text><textPath href="#ring" textLength="236">REHEARSAL STAGE · 5 6 7 8 ·</textPath></text></g>
+            <circle class="dot" cx="50" cy="50" r="4"/>
+          </svg>
+          <p class="t-eyebrow" data-reveal style="--d:250ms">Rehearsal Tour · 2023 — 2026</p>
+          <h1 class="t-title" data-reveal="write" style="--d:380ms">Tia's<br><span class="outline">Roadmap</span></h1>
+          <p class="t-count" data-reveal style="--d:700ms">five, six, seven, eight —</p>
+          <ol class="t-setlist" id="ticketSetlist">
+            <li data-reveal style="--d:820ms"><span class="n">01</span><span class="y">2023</span><span class="ti">첫 박자<small>Audition</small></span><span class="bpm"><i style="--beat:.652s"></i><b>92</b> BPM</span></li>
+            <li data-reveal style="--d:900ms"><span class="n">02</span><span class="y">2024</span><span class="ti">무대 위에서<small>On Stage</small></span><span class="bpm"><i style="--beat:.577s"></i><b>104</b> BPM</span></li>
+            <li data-reveal style="--d:980ms"><span class="n">03</span><span class="y">2025</span><span class="ti">리드하는 자리<small>Lead</small></span><span class="bpm"><i style="--beat:.517s"></i><b>116</b> BPM</span></li>
+            <li data-reveal style="--d:1060ms"><span class="n">04</span><span class="y">2026</span><span class="ti">앵콜<small>Encore</small></span><span class="bpm"><i style="--beat:.469s"></i><b>128</b> BPM</span></li>
+          </ol>
+          <dl class="t-meta" data-reveal style="--d:1180ms">
+            <div><dt>Venue</dt><dd>OpenShift Sandbox</dd></div>
+            <div><dt>Doors</dt><dd>:8080</dd></div>
+            <div><dt>Keys</dt><dd>← ↓ ↑ →</dd></div>
+          </dl>
+        </div>
+        <div class="ticket-stub">
+          <div class="s-admit" data-reveal style="--d:520ms">Admit<br>One</div>
+          <dl class="s-info" data-reveal style="--d:640ms">
+            <div><dt>No.</dt><dd>202355529</dd></div>
+            <div><dt>Seat</dt><dd>tia-web</dd></div>
+            <div><dt>Show</dt><dd>10.30 10:00</dd></div>
+          </dl>
+          <div class="s-barcode" aria-hidden="true" data-reveal style="--d:760ms"></div>
+        </div>
+      </div>
+    </div>
+    <div class="t-actions" data-reveal style="--d:1300ms">
+      <button class="primary" id="startBtn" type="button">입장하기 <span class="arr">→</span></button>
+      <p class="t-hint">D F J K도 돼요 · 정확도 60% 넘으면 무대 클리어</p>
+    </div>
+    <p class="note" id="introNote"></p>
   </section>
 
   <!-- 2. 스테이지 선택 -->
