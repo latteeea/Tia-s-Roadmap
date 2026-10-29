@@ -229,7 +229,10 @@ canvas { width: 100%; max-width: 360px; height: auto; background: var(--paper); 
   display: none; position: absolute; top: 26px; right: 26px; padding: 6px 12px;
   font-size: 22px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--matcha-deep);
   border: 3px double currentColor; border-radius: 8px; transform: rotate(-12deg); opacity: .9;
+  line-height: 1.05; text-align: center;
 }
+.result-card[data-rank="fc"] .clear-stamp { color: var(--ink); }
+.result-card[data-rank="ap"] .clear-stamp { color: #b77d7a; }
 .result-card.is-clear .clear-stamp { display: block; }
 .motion .result-card.is-clear .clear-stamp { animation: stamp .45s cubic-bezier(.3, 1.5, .5, 1) .55s both; }
 .motion .result-card.is-clear { animation: thud .25s ease-out .75s; }

@@ -552,8 +552,14 @@
       saveProgress();
     }
 
+    // 도장 등급: 모든 노트 PERFECT → ALL PERFECT, MISS 없이 전부 맞힘 → FULL COMBO, 그 외 → CLEAR
+    const fullCombo = clear && g.miss === 0 && g.perfect + g.good === g.notes.length;
+    const allPerfect = fullCombo && g.perfect === g.notes.length;
+    const rank = allPerfect ? ["ap", "All Perfect"] : fullCombo ? ["fc", "Full Combo"] : ["clear", "Clear"];
     $("resultCard").classList.toggle("is-clear", clear);
-    $("resultEyebrow").textContent = clear ? `Stage ${i + 1} · ${g.stage.grade} · Clear` : `Stage ${i + 1} · Retry`;
+    $("resultCard").dataset.rank = rank[0];
+    $("resultCard").querySelector(".clear-stamp").innerHTML = rank[1].replace(" ", "<br>");
+    $("resultEyebrow").textContent = clear ? `Stage ${i + 1} · ${g.stage.grade} · ${rank[1]}` : `Stage ${i + 1} · Retry`;
     $("resultTitle").textContent = clear ? `${g.stage.year}, ${g.stage.title}` : "박자를 조금 놓쳤어요";
     const stats = [
       ["Accuracy", acc * 100, (v) => `${v.toFixed(1)}%`],
