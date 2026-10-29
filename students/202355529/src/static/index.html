@@ -61,8 +61,9 @@
 
   <!-- 2. 스테이지 선택 -->
   <section class="screen" id="select">
-    <p class="eyebrow">Setlist</p>
-    <h2>오늘의 셋리스트</h2>
+    <p class="t-eyebrow" data-reveal>Setlist · Tonight</p>
+    <h2 class="big-title" data-reveal="write" style="--d:80ms">Tonight's <span class="outline">Setlist</span></h2>
+    <p class="sub" data-reveal style="--d:200ms">앞 무대를 클리어하면 다음 무대가 열려요.</p>
     <ol class="setlist" id="setlist"></ol>
   </section>
 
@@ -86,23 +87,28 @@
 
   <!-- 4. 결과 + 챕터 공개 -->
   <section class="screen" id="result">
-    <p class="eyebrow" id="resultEyebrow"></p>
-    <h2 id="resultTitle"></h2>
-    <p class="stats" id="resultStats"></p>
+    <div class="result-card" id="resultCard">
+      <span class="clear-stamp" aria-hidden="true">Clear</span>
+      <p class="t-eyebrow" id="resultEyebrow" data-reveal></p>
+      <h2 class="big-title" id="resultTitle" data-reveal="write" style="--d:100ms"></h2>
+      <dl class="stats" id="resultStats" data-reveal style="--d:260ms"></dl>
+    </div>
     <article class="chapter" id="chapter"></article>
-    <div class="actions" id="resultActions"></div>
+    <div class="actions" id="resultActions" data-reveal style="--d:500ms"></div>
   </section>
 
-  <!-- 5. 커튼콜 -->
+  <!-- 5. 커튼콜 (커튼이 열리는 동안 내용이 떠오르도록 지연을 길게 준다) -->
   <section class="screen" id="curtain">
-    <p class="eyebrow">Curtain Call</p>
-    <h2 id="ownerHeadline"></h2>
-    <p class="lead" id="ownerAbout"></p>
-    <p class="links" id="ownerLinks"></p>
+    <p class="t-eyebrow" data-reveal style="--d:600ms">Curtain Call · Thank you</p>
+    <h2 class="cc-headline" id="ownerHeadline" data-reveal="write" style="--d:700ms"></h2>
+    <p class="lead" id="ownerAbout" data-reveal style="--d:850ms"></p>
+    <p class="links" id="ownerLinks" data-reveal style="--d:950ms"></p>
 
+    <h3 class="sec-title" data-reveal style="--d:1050ms">The <span class="outline">Program</span></h3>
     <div class="timeline" id="timeline"></div>
 
-    <div class="board">
+    <h3 class="sec-title" data-reveal>Curtain Call <span class="outline">Board</span></h3>
+    <div class="board" data-reveal>
       <section>
         <h3>리더보드</h3>
         <form id="scoreForm" class="inline-form">
@@ -127,6 +133,11 @@
   </section>
 
   <footer class="foot"><span id="podInfo"></span></footer>
+  <!-- 커튼콜 전환용 막 -->
+  <div class="curtains" id="curtains" aria-hidden="true">
+    <div class="c-left"></div><div class="c-right"></div>
+    <span class="c-label">Curtain Call</span>
+  </div>
   <script src="game.js"></script>
 </body>
 </html>

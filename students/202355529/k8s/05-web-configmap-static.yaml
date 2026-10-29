@@ -72,8 +72,9 @@ data:
 
       <!-- 2. 스테이지 선택 -->
       <section class="screen" id="select">
-        <p class="eyebrow">Setlist</p>
-        <h2>오늘의 셋리스트</h2>
+        <p class="t-eyebrow" data-reveal>Setlist · Tonight</p>
+        <h2 class="big-title" data-reveal="write" style="--d:80ms">Tonight's <span class="outline">Setlist</span></h2>
+        <p class="sub" data-reveal style="--d:200ms">앞 무대를 클리어하면 다음 무대가 열려요.</p>
         <ol class="setlist" id="setlist"></ol>
       </section>
 
@@ -97,23 +98,28 @@ data:
 
       <!-- 4. 결과 + 챕터 공개 -->
       <section class="screen" id="result">
-        <p class="eyebrow" id="resultEyebrow"></p>
-        <h2 id="resultTitle"></h2>
-        <p class="stats" id="resultStats"></p>
+        <div class="result-card" id="resultCard">
+          <span class="clear-stamp" aria-hidden="true">Clear</span>
+          <p class="t-eyebrow" id="resultEyebrow" data-reveal></p>
+          <h2 class="big-title" id="resultTitle" data-reveal="write" style="--d:100ms"></h2>
+          <dl class="stats" id="resultStats" data-reveal style="--d:260ms"></dl>
+        </div>
         <article class="chapter" id="chapter"></article>
-        <div class="actions" id="resultActions"></div>
+        <div class="actions" id="resultActions" data-reveal style="--d:500ms"></div>
       </section>
 
-      <!-- 5. 커튼콜 -->
+      <!-- 5. 커튼콜 (커튼이 열리는 동안 내용이 떠오르도록 지연을 길게 준다) -->
       <section class="screen" id="curtain">
-        <p class="eyebrow">Curtain Call</p>
-        <h2 id="ownerHeadline"></h2>
-        <p class="lead" id="ownerAbout"></p>
-        <p class="links" id="ownerLinks"></p>
+        <p class="t-eyebrow" data-reveal style="--d:600ms">Curtain Call · Thank you</p>
+        <h2 class="cc-headline" id="ownerHeadline" data-reveal="write" style="--d:700ms"></h2>
+        <p class="lead" id="ownerAbout" data-reveal style="--d:850ms"></p>
+        <p class="links" id="ownerLinks" data-reveal style="--d:950ms"></p>
 
+        <h3 class="sec-title" data-reveal style="--d:1050ms">The <span class="outline">Program</span></h3>
         <div class="timeline" id="timeline"></div>
 
-        <div class="board">
+        <h3 class="sec-title" data-reveal>Curtain Call <span class="outline">Board</span></h3>
+        <div class="board" data-reveal>
           <section>
             <h3>리더보드</h3>
             <form id="scoreForm" class="inline-form">
@@ -138,6 +144,11 @@ data:
       </section>
 
       <footer class="foot"><span id="podInfo"></span></footer>
+      <!-- 커튼콜 전환용 막 -->
+      <div class="curtains" id="curtains" aria-hidden="true">
+        <div class="c-left"></div><div class="c-right"></div>
+        <span class="c-label">Curtain Call</span>
+      </div>
       <script src="game.js"></script>
     </body>
     </html>
@@ -197,34 +208,57 @@ data:
         return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       }
 
-      function chapterHTML(stage) {
-        const items = stage.items.map((it) =>
-          `<li><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span><span>${esc(it.text)}</span></li>`).join("");
-        return `<div class="ch-head"><h3>${esc(stage.year)} · ${esc(stage.title)}</h3><span class="muted">${esc(stage.grade)}</span></div>
-          <p>${esc(stage.summary)}</p><ul class="items">${items}</ul>`;
+      // d0부터 step 간격으로 한 줄씩 떠오르게 하는 data-reveal 속성
+      const rv = (ms) => `data-reveal style="--d:${ms}ms"`;
+
+      function itemsHTML(stage, d0) {
+        return stage.items.map((it, k) =>
+          `<li ${rv(d0 + k * 70)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span><span>${esc(it.text)}</span></li>`).join("");
+      }
+
+      function chapterHTML(stage, d0 = 0) {
+        return `<div class="ch-head" ${rv(d0)}><h3>${esc(stage.year)} · ${esc(stage.title)}</h3><span class="muted">${esc(stage.grade)}</span></div>
+          <p ${rv(d0 + 80)}>${esc(stage.summary)}</p><ul class="items">${itemsHTML(stage, d0 + 160)}</ul>`;
+      }
+
+      // 커튼콜 프로그램북의 한 페이지: 왼쪽에 연도, 오른쪽에 그 해의 기록
+      function programHTML(stage, d0) {
+        return `<article class="program">
+          <div ${rv(d0)}><span class="p-year">${esc(stage.year)}</span><span class="p-grade">${esc(stage.grade)}</span></div>
+          <div><h4 ${rv(d0 + 60)}>${esc(stage.title)}<small>${esc(stage.subtitle)}</small></h4>
+            <p ${rv(d0 + 120)}>${esc(stage.summary)}</p><ul class="items">${itemsHTML(stage, d0 + 180)}</ul></div>
+        </article>`;
       }
 
       function renderSetlist() {
         if (!state.portfolio) return;
         const list = $("setlist");
         list.innerHTML = "";
+        const row = (i, cls, no, body, bpm, stateHTML, disabled, onClick) => {
+          // 등장 효과(transform)는 li가, 호버 효과는 button이 맡아 서로 덮어쓰지 않게 한다
+          const li = document.createElement("li");
+          li.dataset.reveal = "";
+          li.style.setProperty("--d", `${260 + i * 80}ms`);
+          li.innerHTML = `<button type="button" class="set-row ${cls}" ${disabled ? "disabled" : ""}>
+              <span class="set-no">${no}</span><span class="set-body">${body}</span>${bpm}
+              <span class="set-state">${stateHTML}</span></button>`;
+          li.querySelector("button").addEventListener("click", onClick);
+          list.appendChild(li);
+        };
         state.portfolio.stages.forEach((st, i) => {
           const unlocked = i === 0 || state.cleared.has(i - 1);
           const cleared = state.cleared.has(i);
-          const li = document.createElement("li");
-          li.innerHTML = `<button type="button" ${unlocked ? "" : "disabled"}>
-              <span class="set-year">${st.year}</span>
-              <span class="set-title">${esc(st.title)}<small>${esc(st.subtitle)} · ${st.bpm} BPM</small></span>
-              <span class="set-state ${cleared ? "cleared" : ""}">${cleared ? `CLEAR ${state.best[i] || 0}` : unlocked ? "PLAY" : "LOCKED"}</span>
-            </button>`;
-          li.querySelector("button").addEventListener("click", () => startStage(i));
-          list.appendChild(li);
+          row(i, "", String(i + 1).padStart(2, "0"),
+            `<span class="set-year">${st.year} · ${esc(st.grade)}</span><span class="set-title">${esc(st.title)}<small>${esc(st.subtitle)}</small></span>`,
+            `<span class="set-bpm"><i style="--beat:${60 / st.bpm}s"></i>${st.bpm} BPM</span>`,
+            cleared ? `<em class="stamp">Clear</em><b>${(state.best[i] || 0).toLocaleString()}</b>`
+              : unlocked ? `Play <span class="arr">→</span>` : "Locked",
+            !unlocked, () => startStage(i));
         });
         if (state.cleared.size === state.portfolio.stages.length) {
-          const li = document.createElement("li");
-          li.innerHTML = `<button type="button"><span class="set-year">∞</span><span class="set-title">커튼콜<small>Curtain Call</small></span><span class="set-state cleared">OPEN</span></button>`;
-          li.querySelector("button").addEventListener("click", openCurtain);
-          list.appendChild(li);
+          row(state.portfolio.stages.length, "encore", "∞",
+            `<span class="set-year">All stages cleared</span><span class="set-title">커튼콜<small>Curtain Call</small></span>`,
+            "<span></span>", `Open <span class="arr">→</span>`, false, openCurtain);
         }
         show("select");
       }
@@ -439,11 +473,20 @@ data:
           saveProgress();
         }
 
-        $("resultEyebrow").textContent = clear ? `Stage ${i + 1} Clear` : `Stage ${i + 1}`;
+        $("resultCard").classList.toggle("is-clear", clear);
+        $("resultEyebrow").textContent = clear ? `Stage ${i + 1} · ${g.stage.grade} · Clear` : `Stage ${i + 1} · Retry`;
         $("resultTitle").textContent = clear ? `${g.stage.year}, ${g.stage.title}` : "박자를 조금 놓쳤어요";
-        $("resultStats").textContent =
-          `정확도 ${(acc * 100).toFixed(1)}% · Perfect ${g.perfect} · Good ${g.good} · Miss ${g.miss} · 최대 콤보 ${g.maxCombo} · ${g.score.toLocaleString()}점`;
-        $("chapter").innerHTML = clear ? chapterHTML(g.stage) : "";
+        const stats = [
+          ["Accuracy", acc * 100, (v) => `${v.toFixed(1)}%`],
+          ["Score", g.score, (v) => Math.round(v).toLocaleString()],
+          ["Max Combo", g.maxCombo, (v) => Math.round(v)],
+          ["Perfect", g.perfect, (v) => Math.round(v)],
+          ["Good", g.good, (v) => Math.round(v)],
+          ["Miss", g.miss, (v) => Math.round(v)],
+        ];
+        $("resultStats").innerHTML = stats.map(([k]) => `<div><dt>${k}</dt><dd></dd></div>`).join("");
+        $("resultStats").querySelectorAll("dd").forEach((dd, k) => countUp(dd, stats[k][1], stats[k][2]));
+        $("chapter").innerHTML = clear ? chapterHTML(g.stage, 600) : "";
 
         const actions = $("resultActions");
         actions.innerHTML = "";
@@ -493,18 +536,65 @@ data:
       function openCurtain() {
         const p = state.portfolio;
         if (!p) return;
-        $("ownerHeadline").textContent = p.headline;
-        $("ownerAbout").textContent = p.about;
-        $("ownerLinks").innerHTML = (p.links || [])
-          .map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
-        $("timeline").innerHTML = p.stages.map((s) => `<article class="chapter">${chapterHTML(s)}</article>`).join("");
-        const total = totalScore();
-        $("myScore").textContent = total > 0
-          ? `내 총점 ${total.toLocaleString()}점 (클리어한 무대 ${state.cleared.size}/${p.stages.length})`
-          : "무대를 하나 이상 클리어하면 점수를 남길 수 있어요.";
-        $("scoreForm").querySelector("button").disabled = total === 0;
-        show("curtain");
-        refreshBoard();
+        curtainTransition(() => {
+          $("ownerHeadline").textContent = p.headline;
+          $("ownerAbout").textContent = p.about;
+          $("ownerLinks").innerHTML = (p.links || [])
+            .map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
+          $("timeline").innerHTML = p.stages.map((s, k) => programHTML(s, 1150 + k * 120)).join("");
+          const total = totalScore();
+          $("myScore").textContent = total > 0
+            ? `내 총점 ${total.toLocaleString()}점 (클리어한 무대 ${state.cleared.size}/${p.stages.length})`
+            : "무대를 하나 이상 클리어하면 점수를 남길 수 있어요.";
+          $("scoreForm").querySelector("button").disabled = total === 0;
+          show("curtain");
+          refreshBoard();
+        });
+      }
+
+      // 막이 닫히고 → 그 사이 화면을 바꾸고 → 막이 양옆으로 걷힌다
+      let curtainBusy = false;
+      function curtainTransition(swap) {
+        if (!MOTION) return swap();
+        if (curtainBusy) return;
+        curtainBusy = true;
+        const box = $("curtains"), [L, R] = box.querySelectorAll("div"), label = box.querySelector(".c-label");
+        box.classList.add("on");
+        const close = { duration: 650, easing: "cubic-bezier(.6, 0, .3, 1)", fill: "forwards" };
+        const open = { duration: 1500, easing: "cubic-bezier(.7, 0, .2, 1)", fill: "forwards" };
+        const side = (dir) => [
+          { transform: "none" },
+          { transform: `translateX(${dir * 10}%) scaleX(.94)`, offset: 0.25 },
+          { transform: `translateX(${dir * 101}%) scaleX(.6)` },
+        ];
+        Promise.all([
+          L.animate([{ transform: "translateX(-101%)" }, { transform: "none" }], close).finished,
+          R.animate([{ transform: "translateX(101%)" }, { transform: "none" }], close).finished,
+          label.animate([{ opacity: 0 }, { opacity: 1 }], { ...close, delay: 250 }).finished,
+        ])
+          .then(() => { swap(); return new Promise((r) => setTimeout(r, 350)); })
+          .then(() => {
+            label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" });
+            return Promise.all([L.animate(side(-1), open).finished, R.animate(side(1), open).finished]);
+          })
+          .finally(() => {
+            box.classList.remove("on");
+            L.getAnimations().concat(R.getAnimations(), label.getAnimations()).forEach((a) => a.cancel());
+            curtainBusy = false;
+          });
+      }
+
+      // 결과 숫자가 0부터 차오른다
+      function countUp(el, to, fmt) {
+        if (!MOTION) { el.textContent = fmt(to); return; }
+        const t0 = performance.now() + 350, D = 900;
+        const step = (t) => {
+          const k = Math.min(1, Math.max(0, (t - t0) / D));
+          el.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
+          if (k < 1) requestAnimationFrame(step);
+        };
+        el.textContent = fmt(0);
+        requestAnimationFrame(step);
       }
 
       $("scoreForm").addEventListener("submit", async (e) => {
@@ -817,20 +907,46 @@ data:
     button:active { transform: scale(.98); }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
 
-    /* setlist */
-    .setlist { list-style: none; padding: 0; margin: 8px 0 0; border-top: 1px solid var(--line); }
-    .setlist li { border-bottom: 1px solid var(--line); }
-    .setlist button {
-      width: 100%; display: grid; grid-template-columns: 56px 1fr auto; align-items: baseline; gap: 12px;
-      background: none; border: 0; padding: 18px 2px; text-align: left; cursor: pointer;
+    /* 공통: 큰 제목·외곽선 글씨 */
+    .big-title { font-size: clamp(36px, 7vw, 56px); line-height: .98; letter-spacing: -0.06em; font-weight: 800; margin: 0 0 12px; }
+    .outline { color: transparent; -webkit-text-stroke: 1.3px var(--ink); }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 28px; }
+
+    /* setlist: 무대마다 한 장씩 */
+    .setlist { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .set-row {
+      position: relative; width: 100%; display: grid; grid-template-columns: 52px 1fr auto auto; align-items: center; gap: 18px;
+      padding: 18px 22px 18px 0; border: 0; text-align: left; cursor: pointer;
+      background: var(--paper); border-radius: 14px;
+      box-shadow: 0 1px 1px rgba(43, 42, 39, .06), 0 12px 24px -18px rgba(43, 42, 39, .35);
+      transition: transform .4s cubic-bezier(.16, 1, .3, 1), box-shadow .4s cubic-bezier(.16, 1, .3, 1);
     }
-    .setlist button:disabled { cursor: not-allowed; opacity: .38; }
-    .setlist button:not(:disabled):hover .set-title { color: var(--matcha-deep); }
-    .set-year { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .set-title { font-size: 17px; font-weight: 600; letter-spacing: -0.035em; }
+    .set-row:not(:disabled):hover { transform: translateY(-3px); box-shadow: 0 1px 1px rgba(43, 42, 39, .06), 0 20px 30px -18px rgba(43, 42, 39, .4); }
+    .set-row:disabled { cursor: not-allowed; opacity: .45; }
+    .set-no { align-self: stretch; display: flex; align-items: center; justify-content: center; border-right: 1.5px dashed #cfc6b4; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .set-body { display: grid; gap: 2px; }
+    .set-year { font-size: 11px; color: var(--muted); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+    .set-title { font-size: 18px; font-weight: 700; letter-spacing: -0.04em; }
     .set-title small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
-    .set-state { font-size: 12px; color: var(--muted); }
-    .set-state.cleared { color: var(--matcha-deep); }
+    .set-bpm { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .set-bpm i { width: 5px; height: 5px; border-radius: 50%; background: var(--matcha); }
+    .set-state { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; min-width: 72px; justify-content: flex-end; }
+    .set-state b { color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+    .set-row:not(:disabled):hover .arr { transform: translateX(4px); }
+    .set-state .arr { display: inline-block; transition: transform .3s cubic-bezier(.16, 1, .3, 1); color: var(--ink); }
+    .stamp {
+      display: inline-block; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--matcha-deep); border: 1.5px solid currentColor; border-radius: 4px; padding: 1px 6px; transform: rotate(-7deg);
+    }
+    .set-row.encore { background: var(--ink); color: var(--paper); }
+    .set-row.encore .set-no { border-color: rgba(251, 248, 242, .25); }
+    .set-row.encore .set-year, .set-row.encore .set-title small { color: rgba(251, 248, 242, .6); }
+    .set-row.encore .set-state, .set-row.encore .arr { color: var(--paper); }
+    @media (max-width: 560px) {
+      .set-row { grid-template-columns: 40px 1fr auto; gap: 12px; padding-right: 16px; }
+      .set-bpm { display: none; }
+      .set-title small { display: none; }
+    }
 
     /* play */
     .hud { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
@@ -847,8 +963,31 @@ data:
     .pads button.hit { background: var(--matcha); color: #fff; border-color: var(--matcha); }
     @media (hover: hover) and (pointer: fine) { .pads { display: none; } }
 
-    /* result + chapter */
-    .stats { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0 0 24px; }
+    /* result: 성적표 티켓 + 도장 */
+    .result-card {
+      position: relative; padding: 28px 30px 24px; margin-bottom: 28px; background: var(--paper); border-radius: 18px;
+      box-shadow: 0 1px 1px rgba(43, 42, 39, .06), 0 18px 32px -20px rgba(43, 42, 39, .4);
+    }
+    .result-card .big-title { padding-right: 110px; }
+    .clear-stamp {
+      display: none; position: absolute; top: 26px; right: 26px; padding: 6px 12px;
+      font-size: 22px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--matcha-deep);
+      border: 3px double currentColor; border-radius: 8px; transform: rotate(-12deg); opacity: .9;
+    }
+    .result-card.is-clear .clear-stamp { display: block; }
+    .motion .result-card.is-clear .clear-stamp { animation: stamp .45s cubic-bezier(.3, 1.5, .5, 1) .55s both; }
+    .motion .result-card.is-clear { animation: thud .25s ease-out .75s; }
+    @keyframes stamp { from { opacity: 0; transform: rotate(-12deg) scale(2.6); } to { opacity: .9; transform: rotate(-12deg) scale(1); } }
+    @keyframes thud { 40% { transform: translateY(3px); } }
+    .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin: 22px 0 0; padding-top: 18px; border-top: 1.5px dashed #cfc6b4; }
+    .stats dt { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    .stats dd { margin: 2px 0 0; font-size: 18px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    @media (max-width: 560px) {
+      .result-card { padding: 24px 22px 20px; }
+      .result-card .big-title { padding-right: 70px; }
+      .clear-stamp { top: 20px; right: 16px; font-size: 15px; }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+    }
     .chapter { border-top: 1px solid var(--ink); padding-top: 20px; }
     .chapter:empty { display: none; }
     .chapter .ch-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
@@ -860,11 +999,44 @@ data:
     .tag.Dance { color: #b77d7a; }
     .tag.Hackathon { color: #9a7b4f; }
 
-    /* curtain */
+    /* curtain: 공연 프로그램북 */
+    .cc-headline { font-size: clamp(28px, 5.4vw, 40px); line-height: 1.2; letter-spacing: -0.05em; font-weight: 800; margin: 0 0 14px; }
     .links a { color: var(--matcha-deep); margin-right: 14px; font-size: 13px; }
-    .timeline { margin: 32px 0 40px; }
-    .timeline .chapter { margin-bottom: 32px; }
-    .board { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; border-top: 1px solid var(--ink); padding-top: 20px; }
+    .sec-title { font-size: clamp(26px, 5vw, 36px); line-height: 1; letter-spacing: -0.05em; font-weight: 800; margin: 56px 0 20px; }
+    .sec-title .outline { -webkit-text-stroke-width: 1.1px; }
+    .timeline { margin: 0; border-top: 1px solid var(--ink); }
+    .program { display: grid; grid-template-columns: 150px 1fr; gap: 24px; padding: 26px 0; border-bottom: 1px solid var(--line); }
+    .program .p-year { font-size: 48px; font-weight: 800; line-height: .9; letter-spacing: -0.06em; color: transparent; -webkit-text-stroke: 1.2px var(--ink); font-variant-numeric: tabular-nums; }
+    .program .p-grade { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+    .program h4 { margin: 0 0 6px; font-size: 19px; letter-spacing: -0.04em; }
+    .program h4 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+    .program p { margin: 0 0 12px; color: #4d4a44; }
+    @media (max-width: 560px) {
+      .program { grid-template-columns: 1fr; gap: 10px; }
+      .program .p-year { font-size: 40px; }
+    }
+    .board { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .board > section {
+      padding: 22px; background: var(--paper); border-radius: 16px;
+      box-shadow: 0 1px 1px rgba(43, 42, 39, .06), 0 14px 28px -18px rgba(43, 42, 39, .35);
+    }
+    .board h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+    /* 커튼 전환: 벨벳 막이 닫혔다가 양옆으로 걷힌다 */
+    .curtains { position: fixed; inset: 0; z-index: 40; display: none; overflow: hidden; }
+    .curtains.on { display: block; }
+    .curtains > div {
+      position: absolute; top: 0; bottom: 0; width: 50.5%;
+      background:
+        linear-gradient(to bottom, rgba(0, 0, 0, .22), transparent 16%, transparent 78%, rgba(0, 0, 0, .3)),
+        repeating-linear-gradient(90deg, #4a2326 0, #6a3236 22px, #7b3d41 31px, #5a2a2d 44px, #4a2326 56px);
+    }
+    .c-left { left: 0; transform-origin: left center; transform: translateX(-101%); box-shadow: inset -24px 0 36px -18px rgba(0, 0, 0, .45); }
+    .c-right { right: 0; transform-origin: right center; transform: translateX(101%); box-shadow: inset 24px 0 36px -18px rgba(0, 0, 0, .45); }
+    .c-label {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0;
+      font-size: 12px; font-weight: 600; letter-spacing: .4em; text-transform: uppercase; color: #f1e4dc; white-space: nowrap;
+    }
     @media (max-width: 600px) { .board { grid-template-columns: 1fr; } }
     input, textarea { width: 100%; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 14px; resize: none; }
     input:focus, textarea:focus { outline: none; border-color: var(--matcha); }
@@ -872,9 +1044,12 @@ data:
     .inline-form .muted { grid-column: 1 / -1; font-size: 12px; }
     .stack-form { display: grid; gap: 8px; margin-bottom: 14px; }
     .stack-form button, .inline-form button { padding: 9px 16px; }
-    .ranking { padding-left: 20px; margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
-    .ranking li { padding: 4px 0; }
-    .ranking li span { float: right; color: var(--muted); }
+    .ranking { list-style: none; counter-reset: rank; padding: 0; margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .ranking li { counter-increment: rank; display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+    .ranking li::before { content: counter(rank, decimal-leading-zero); width: 20px; font-size: 11px; color: var(--muted); }
+    .ranking li:first-child::before { color: var(--matcha-deep); font-weight: 800; }
+    .ranking li.muted::before { content: none; }
+    .ranking li span { margin-left: auto; color: var(--muted); }
     .cheers { list-style: none; padding: 0; margin: 0; font-size: 14px; max-height: 320px; overflow-y: auto; }
     .cheers li { padding: 8px 0; border-bottom: 1px dashed var(--line); }
     .cheers b { font-weight: 600; margin-right: 6px; }

@@ -53,34 +53,57 @@
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  function chapterHTML(stage) {
-    const items = stage.items.map((it) =>
-      `<li><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span><span>${esc(it.text)}</span></li>`).join("");
-    return `<div class="ch-head"><h3>${esc(stage.year)} · ${esc(stage.title)}</h3><span class="muted">${esc(stage.grade)}</span></div>
-      <p>${esc(stage.summary)}</p><ul class="items">${items}</ul>`;
+  // d0부터 step 간격으로 한 줄씩 떠오르게 하는 data-reveal 속성
+  const rv = (ms) => `data-reveal style="--d:${ms}ms"`;
+
+  function itemsHTML(stage, d0) {
+    return stage.items.map((it, k) =>
+      `<li ${rv(d0 + k * 70)}><span class="tag ${esc(it.tag)}">${esc(it.tag)}</span><span>${esc(it.text)}</span></li>`).join("");
+  }
+
+  function chapterHTML(stage, d0 = 0) {
+    return `<div class="ch-head" ${rv(d0)}><h3>${esc(stage.year)} · ${esc(stage.title)}</h3><span class="muted">${esc(stage.grade)}</span></div>
+      <p ${rv(d0 + 80)}>${esc(stage.summary)}</p><ul class="items">${itemsHTML(stage, d0 + 160)}</ul>`;
+  }
+
+  // 커튼콜 프로그램북의 한 페이지: 왼쪽에 연도, 오른쪽에 그 해의 기록
+  function programHTML(stage, d0) {
+    return `<article class="program">
+      <div ${rv(d0)}><span class="p-year">${esc(stage.year)}</span><span class="p-grade">${esc(stage.grade)}</span></div>
+      <div><h4 ${rv(d0 + 60)}>${esc(stage.title)}<small>${esc(stage.subtitle)}</small></h4>
+        <p ${rv(d0 + 120)}>${esc(stage.summary)}</p><ul class="items">${itemsHTML(stage, d0 + 180)}</ul></div>
+    </article>`;
   }
 
   function renderSetlist() {
     if (!state.portfolio) return;
     const list = $("setlist");
     list.innerHTML = "";
+    const row = (i, cls, no, body, bpm, stateHTML, disabled, onClick) => {
+      // 등장 효과(transform)는 li가, 호버 효과는 button이 맡아 서로 덮어쓰지 않게 한다
+      const li = document.createElement("li");
+      li.dataset.reveal = "";
+      li.style.setProperty("--d", `${260 + i * 80}ms`);
+      li.innerHTML = `<button type="button" class="set-row ${cls}" ${disabled ? "disabled" : ""}>
+          <span class="set-no">${no}</span><span class="set-body">${body}</span>${bpm}
+          <span class="set-state">${stateHTML}</span></button>`;
+      li.querySelector("button").addEventListener("click", onClick);
+      list.appendChild(li);
+    };
     state.portfolio.stages.forEach((st, i) => {
       const unlocked = i === 0 || state.cleared.has(i - 1);
       const cleared = state.cleared.has(i);
-      const li = document.createElement("li");
-      li.innerHTML = `<button type="button" ${unlocked ? "" : "disabled"}>
-          <span class="set-year">${st.year}</span>
-          <span class="set-title">${esc(st.title)}<small>${esc(st.subtitle)} · ${st.bpm} BPM</small></span>
-          <span class="set-state ${cleared ? "cleared" : ""}">${cleared ? `CLEAR ${state.best[i] || 0}` : unlocked ? "PLAY" : "LOCKED"}</span>
-        </button>`;
-      li.querySelector("button").addEventListener("click", () => startStage(i));
-      list.appendChild(li);
+      row(i, "", String(i + 1).padStart(2, "0"),
+        `<span class="set-year">${st.year} · ${esc(st.grade)}</span><span class="set-title">${esc(st.title)}<small>${esc(st.subtitle)}</small></span>`,
+        `<span class="set-bpm"><i style="--beat:${60 / st.bpm}s"></i>${st.bpm} BPM</span>`,
+        cleared ? `<em class="stamp">Clear</em><b>${(state.best[i] || 0).toLocaleString()}</b>`
+          : unlocked ? `Play <span class="arr">→</span>` : "Locked",
+        !unlocked, () => startStage(i));
     });
     if (state.cleared.size === state.portfolio.stages.length) {
-      const li = document.createElement("li");
-      li.innerHTML = `<button type="button"><span class="set-year">∞</span><span class="set-title">커튼콜<small>Curtain Call</small></span><span class="set-state cleared">OPEN</span></button>`;
-      li.querySelector("button").addEventListener("click", openCurtain);
-      list.appendChild(li);
+      row(state.portfolio.stages.length, "encore", "∞",
+        `<span class="set-year">All stages cleared</span><span class="set-title">커튼콜<small>Curtain Call</small></span>`,
+        "<span></span>", `Open <span class="arr">→</span>`, false, openCurtain);
     }
     show("select");
   }
@@ -295,11 +318,20 @@
       saveProgress();
     }
 
-    $("resultEyebrow").textContent = clear ? `Stage ${i + 1} Clear` : `Stage ${i + 1}`;
+    $("resultCard").classList.toggle("is-clear", clear);
+    $("resultEyebrow").textContent = clear ? `Stage ${i + 1} · ${g.stage.grade} · Clear` : `Stage ${i + 1} · Retry`;
     $("resultTitle").textContent = clear ? `${g.stage.year}, ${g.stage.title}` : "박자를 조금 놓쳤어요";
-    $("resultStats").textContent =
-      `정확도 ${(acc * 100).toFixed(1)}% · Perfect ${g.perfect} · Good ${g.good} · Miss ${g.miss} · 최대 콤보 ${g.maxCombo} · ${g.score.toLocaleString()}점`;
-    $("chapter").innerHTML = clear ? chapterHTML(g.stage) : "";
+    const stats = [
+      ["Accuracy", acc * 100, (v) => `${v.toFixed(1)}%`],
+      ["Score", g.score, (v) => Math.round(v).toLocaleString()],
+      ["Max Combo", g.maxCombo, (v) => Math.round(v)],
+      ["Perfect", g.perfect, (v) => Math.round(v)],
+      ["Good", g.good, (v) => Math.round(v)],
+      ["Miss", g.miss, (v) => Math.round(v)],
+    ];
+    $("resultStats").innerHTML = stats.map(([k]) => `<div><dt>${k}</dt><dd></dd></div>`).join("");
+    $("resultStats").querySelectorAll("dd").forEach((dd, k) => countUp(dd, stats[k][1], stats[k][2]));
+    $("chapter").innerHTML = clear ? chapterHTML(g.stage, 600) : "";
 
     const actions = $("resultActions");
     actions.innerHTML = "";
@@ -349,18 +381,65 @@
   function openCurtain() {
     const p = state.portfolio;
     if (!p) return;
-    $("ownerHeadline").textContent = p.headline;
-    $("ownerAbout").textContent = p.about;
-    $("ownerLinks").innerHTML = (p.links || [])
-      .map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
-    $("timeline").innerHTML = p.stages.map((s) => `<article class="chapter">${chapterHTML(s)}</article>`).join("");
-    const total = totalScore();
-    $("myScore").textContent = total > 0
-      ? `내 총점 ${total.toLocaleString()}점 (클리어한 무대 ${state.cleared.size}/${p.stages.length})`
-      : "무대를 하나 이상 클리어하면 점수를 남길 수 있어요.";
-    $("scoreForm").querySelector("button").disabled = total === 0;
-    show("curtain");
-    refreshBoard();
+    curtainTransition(() => {
+      $("ownerHeadline").textContent = p.headline;
+      $("ownerAbout").textContent = p.about;
+      $("ownerLinks").innerHTML = (p.links || [])
+        .map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
+      $("timeline").innerHTML = p.stages.map((s, k) => programHTML(s, 1150 + k * 120)).join("");
+      const total = totalScore();
+      $("myScore").textContent = total > 0
+        ? `내 총점 ${total.toLocaleString()}점 (클리어한 무대 ${state.cleared.size}/${p.stages.length})`
+        : "무대를 하나 이상 클리어하면 점수를 남길 수 있어요.";
+      $("scoreForm").querySelector("button").disabled = total === 0;
+      show("curtain");
+      refreshBoard();
+    });
+  }
+
+  // 막이 닫히고 → 그 사이 화면을 바꾸고 → 막이 양옆으로 걷힌다
+  let curtainBusy = false;
+  function curtainTransition(swap) {
+    if (!MOTION) return swap();
+    if (curtainBusy) return;
+    curtainBusy = true;
+    const box = $("curtains"), [L, R] = box.querySelectorAll("div"), label = box.querySelector(".c-label");
+    box.classList.add("on");
+    const close = { duration: 650, easing: "cubic-bezier(.6, 0, .3, 1)", fill: "forwards" };
+    const open = { duration: 1500, easing: "cubic-bezier(.7, 0, .2, 1)", fill: "forwards" };
+    const side = (dir) => [
+      { transform: "none" },
+      { transform: `translateX(${dir * 10}%) scaleX(.94)`, offset: 0.25 },
+      { transform: `translateX(${dir * 101}%) scaleX(.6)` },
+    ];
+    Promise.all([
+      L.animate([{ transform: "translateX(-101%)" }, { transform: "none" }], close).finished,
+      R.animate([{ transform: "translateX(101%)" }, { transform: "none" }], close).finished,
+      label.animate([{ opacity: 0 }, { opacity: 1 }], { ...close, delay: 250 }).finished,
+    ])
+      .then(() => { swap(); return new Promise((r) => setTimeout(r, 350)); })
+      .then(() => {
+        label.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" });
+        return Promise.all([L.animate(side(-1), open).finished, R.animate(side(1), open).finished]);
+      })
+      .finally(() => {
+        box.classList.remove("on");
+        L.getAnimations().concat(R.getAnimations(), label.getAnimations()).forEach((a) => a.cancel());
+        curtainBusy = false;
+      });
+  }
+
+  // 결과 숫자가 0부터 차오른다
+  function countUp(el, to, fmt) {
+    if (!MOTION) { el.textContent = fmt(to); return; }
+    const t0 = performance.now() + 350, D = 900;
+    const step = (t) => {
+      const k = Math.min(1, Math.max(0, (t - t0) / D));
+      el.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    el.textContent = fmt(0);
+    requestAnimationFrame(step);
   }
 
   $("scoreForm").addEventListener("submit", async (e) => {
