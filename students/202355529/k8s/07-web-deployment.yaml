@@ -46,6 +46,35 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          # 프로세스가 살아 있는지 (실패 시 컨테이너 재시작)
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          # Redis까지 연결돼야 트래픽을 받는다 (실패 시 Service 엔드포인트에서 제외, 재시작은 안 함)
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: app
               mountPath: /opt/app-root/app
